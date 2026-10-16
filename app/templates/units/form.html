@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Единица измерения — Склад{% endblock %}
+{% block content %}
+<h1>{{ "Изменить единицу измерения" if unit else "Новая единица измерения" }}</h1>
+<div class="card">
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    <label>Название
+      <input name="name" value="{{ form.name or '' }}" maxlength="50" required>
+      {% if errors.name %}<span class="error">{{ errors.name }}</span>{% endif %}
+    </label>
+    <label>Сокращение
+      <input name="short_name" value="{{ form.short_name or '' }}" maxlength="10" required>
+      {% if errors.short_name %}<span class="error">{{ errors.short_name }}</span>{% endif %}
+    </label>
+    <div class="form-actions">
+      <button class="btn">Сохранить</button>
+      <a href="/units">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

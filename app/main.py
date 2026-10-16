@@ -12,7 +12,7 @@ from app.database import Base, engine
 from app.errors import register_error_handlers
 from app.logging_config import setup_logging
 from app.middleware import RequestLogMiddleware
-from app.routers import auth, health, home
+from app.routers import auth, health, home, materials, receipts, suppliers, units
 
 setup_logging(settings.log_level, settings.log_file)
 logger = logging.getLogger(__name__)
@@ -42,3 +42,11 @@ app.include_router(health.api)
 app.include_router(auth.api)
 app.include_router(auth.pages)
 app.include_router(home.pages)
+app.include_router(suppliers.api)
+app.include_router(suppliers.pages)
+app.include_router(units.api)
+app.include_router(units.pages)
+app.include_router(materials.api)
+app.include_router(materials.pages)
+app.include_router(receipts.api)
+app.include_router(receipts.pages)

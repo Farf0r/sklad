@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Поступление № {{ receipt.id }} — Склад{% endblock %}
+{% block content %}
+{% set draft = receipt.status == "draft" %}
+<h1>Поступление № {{ receipt.id }}
+  {% if draft %}<span class="badge badge-draft">черновик</span>
+  {% else %}<span class="badge badge-posted">проведено</span>{% endif %}
+</h1>
+
+<div class="card">
+  <dl class="details">
+    <dt>Поставщик</dt><dd>{{ receipt.supplier.name }} (ИНН {{ receipt.supplier.inn }})</dd>
+    <dt>Дата</dt><dd>{{ receipt.receipt_date.strftime("%d.%m.%Y") }}</dd>
+    <dt>Создал</dt><dd>{{ receipt.created_by.username }}</dd>
+    {% if receipt.posted_at %}<dt>Проведено</dt><dd>{{ receipt.posted_at.strftime("%d.%m.%Y %H:%M") }}</dd>{% endif %}
+    {% if receipt.comment %}<dt>Комментарий</dt><dd>{{ receipt.comment }}</dd>{% endif %}
+  </dl>
+</div>
+
+{% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+
+<table>
+  <thead>
+    <tr><th>Материал</th><th class="num">Количество</th><th class="num">Цена, ₽</th><th class="num">Сумма, ₽</th>{% if draft %}<th></th>{% endif %}</tr>
+  </thead>
+  <tbody>
+  {% for item in receipt.items %}
+    <tr>
+      <td>{{ item.material.name }}</td>
+      <td class="num">{{ item.quantity | num }} {{ item.material.unit.short_name }}</td>
+      <td class="num">{{ item.price | money }}</td>
+      <td class="num">{{ item.amount | money }}</td>
+      {% if draft %}
+      <td class="actions">
+        <form method="post" action="/receipts/{{ receipt.id }}/items/{{ item.id }}/delete">
+          <button class="link danger">Убрать</button>
+        </form>
+      </td>
+      {% endif %}
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="empty">Строк пока нет</td></tr>
+  {% endfor %}
+  {% if receipt.items %}
+    <tr>
+      <td colspan="3"><b>Итого</b></td>
+      <td class="num"><b>{{ receipt.total | money }}</b></td>
+      {% if draft %}<td></td>{% endif %}
+    </tr>
+  {% endif %}
+  </tbody>
+</table>
+
+{% if draft %}
+<h2>Добавить строку</h2>
+<div class="card">
+  {% if not materials %}
+  <p>Сначала <a href="/materials/new">добавьте материал</a>.</p>
+  {% else %}
+  <form method="post" action="/receipts/{{ receipt.id }}/items" class="form form-inline">
+    <label>Материал
+      <select name="material_id" required>
+        <option value="">— выберите —</option>
+        {% for material in materials %}
+        <option value="{{ material.id }}" {% if form.material_id | string == material.id | string %}selected{% endif %}>{{ material.name }} ({{ material.unit.short_name }})</option>
+        {% endfor %}
+      </select>
+      {% if errors.material_id %}<span class="error">{{ errors.material_id }}</span>{% endif %}
+    </label>
+    <label>Количество
+      <input name="quantity" value="{{ form.quantity or '' }}" inputmode="decimal" required>
+      {% if errors.quantity %}<span class="error">{{ errors.quantity }}</span>{% endif %}
+    </label>
+    <label>Цена за единицу, ₽
+      <input name="price" value="{{ form.price or '' }}" inputmode="decimal" required>
+      {% if errors.price %}<span class="error">{{ errors.price }}</span>{% endif %}
+    </label>
+    <button class="btn">Добавить</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="toolbar">
+  <form method="post" action="/receipts/{{ receipt.id }}/post" onsubmit="return confirm('Провести поступление? После этого его нельзя будет изменить.')">
+    <button class="btn" {% if not receipt.items %}disabled{% endif %}>Провести</button>
+  </form>
+  {% if user.role == "admin" %}
+  <form method="post" action="/receipts/{{ receipt.id }}/delete" onsubmit="return confirm('Удалить черновик?')">
+    <button class="btn danger">Удалить</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<p><a href="/receipts">← Ко всем поступлениям</a></p>
+{% endblock %}

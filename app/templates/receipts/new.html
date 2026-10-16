@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Новое поступление — Склад{% endblock %}
+{% block content %}
+<h1>Новое поступление</h1>
+<div class="card">
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  {% if not suppliers %}
+  <p>Сначала <a href="/suppliers/new">добавьте поставщика</a>.</p>
+  {% else %}
+  <form method="post" class="form">
+    <label>Поставщик
+      <select name="supplier_id" required>
+        <option value="">— выберите —</option>
+        {% for supplier in suppliers %}
+        <option value="{{ supplier.id }}" {% if form.supplier_id | string == supplier.id | string %}selected{% endif %}>{{ supplier.name }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.supplier_id %}<span class="error">{{ errors.supplier_id }}</span>{% endif %}
+    </label>
+    <label>Дата поступления
+      <input name="receipt_date" type="date" value="{{ form.receipt_date or '' }}" required>
+      {% if errors.receipt_date %}<span class="error">{{ errors.receipt_date }}</span>{% endif %}
+    </label>
+    <label>Комментарий
+      <textarea name="comment" rows="2" maxlength="500">{{ form.comment or '' }}</textarea>
+      {% if errors.comment %}<span class="error">{{ errors.comment }}</span>{% endif %}
+    </label>
+    <div class="form-actions">
+      <button class="btn">Создать черновик</button>
+      <a href="/receipts">Отмена</a>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

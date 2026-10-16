@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Поставщик — Склад{% endblock %}
+{% block content %}
+<h1>{{ "Изменить поставщика" if supplier else "Новый поставщик" }}</h1>
+<div class="card">
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    <label>Название
+      <input name="name" value="{{ form.name or '' }}" maxlength="200" required>
+      {% if errors.name %}<span class="error">{{ errors.name }}</span>{% endif %}
+    </label>
+    <label>ИНН <span class="hint">10 цифр для организации, 12 для ИП</span>
+      <input name="inn" value="{{ form.inn or '' }}" maxlength="12" inputmode="numeric" required>
+      {% if errors.inn %}<span class="error">{{ errors.inn }}</span>{% endif %}
+    </label>
+    <label>Телефон
+      <input name="phone" value="{{ form.phone or '' }}" maxlength="30">
+      {% if errors.phone %}<span class="error">{{ errors.phone }}</span>{% endif %}
+    </label>
+    <label>Email
+      <input name="email" value="{{ form.email or '' }}" maxlength="100">
+      {% if errors.email %}<span class="error">{{ errors.email }}</span>{% endif %}
+    </label>
+    <label>Адрес
+      <textarea name="address" rows="2" maxlength="300">{{ form.address or '' }}</textarea>
+      {% if errors.address %}<span class="error">{{ errors.address }}</span>{% endif %}
+    </label>
+    <div class="form-actions">
+      <button class="btn">Сохранить</button>
+      <a href="/suppliers">Отмена</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Поступления — Склад{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Поступления</h1>
+  <a class="btn" href="/receipts/new">Новое поступление</a>
+</div>
+<table>
+  <thead>
+    <tr><th>№</th><th>Дата</th><th>Поставщик</th><th>Статус</th><th class="num">Строк</th><th class="num">Сумма, ₽</th><th>Создал</th></tr>
+  </thead>
+  <tbody>
+  {% for receipt in receipts %}
+    <tr>
+      <td><a href="/receipts/{{ receipt.id }}">{{ receipt.id }}</a></td>
+      <td>{{ receipt.receipt_date.strftime("%d.%m.%Y") }}</td>
+      <td>{{ receipt.supplier.name }}</td>
+      <td>
+        {% if receipt.status == "posted" %}<span class="badge badge-posted">проведено</span>
+        {% else %}<span class="badge badge-draft">черновик</span>{% endif %}
+      </td>
+      <td class="num">{{ receipt.items | length }}</td>
+      <td class="num">{{ receipt.total | money }}</td>
+      <td class="muted">{{ receipt.created_by.username }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="empty">Поступлений пока нет</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
