@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Вход — Склад{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Вход в систему</h1>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="form">
+    <label>Логин
+      <input name="username" value="{{ username }}" autocomplete="username" required autofocus>
+    </label>
+    <label>Пароль
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <div class="form-actions">
+      <button class="btn">Войти</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

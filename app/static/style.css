@@ -1,0 +1,137 @@
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --text: #1f2328;
+  --muted: #667085;
+  --border: #dde1e6;
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  --danger: #b42318;
+  --ok-bg: #e7f6ef;
+  --error-bg: #fdecea;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.brand { font-weight: 700; font-size: 18px; color: var(--text); }
+.menu { display: flex; gap: 18px; flex: 1; }
+.menu a { color: var(--text); }
+.account { display: flex; align-items: center; gap: 12px; color: var(--muted); }
+.account form { margin: 0; }
+
+.container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+
+h1 { font-size: 24px; margin: 0 0 16px; }
+h2 { font-size: 18px; margin: 24px 0 12px; }
+
+.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.page-head h1 { margin: 0; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+.card.narrow { max-width: 420px; margin: 40px auto; }
+
+.muted { color: var(--muted); }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: #f9fafb; font-weight: 600; font-size: 13px; color: var(--muted); }
+tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.empty { text-align: center; color: var(--muted); padding: 24px; }
+td.actions { white-space: nowrap; text-align: right; }
+td.actions form { display: inline; margin-left: 12px; }
+
+.form { display: flex; flex-direction: column; gap: 14px; max-width: 480px; }
+.form label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; }
+.form .hint { font-weight: 400; font-size: 13px; color: var(--muted); }
+.form-inline { flex-direction: row; flex-wrap: wrap; align-items: flex-start; max-width: none; }
+.form-inline label { flex: 1; min-width: 160px; }
+.form-inline .btn { margin-top: 26px; }
+
+input, select, textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+.error { color: var(--danger); font-size: 13px; font-weight: 400; }
+
+.form-actions { display: flex; gap: 16px; align-items: center; }
+
+.btn {
+  display: inline-block;
+  font: inherit;
+  font-weight: 500;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.btn:hover { background: var(--accent-dark); text-decoration: none; }
+.btn.secondary { background: #fff; color: var(--text); border: 1px solid var(--border); }
+.btn.danger { background: var(--danger); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+button.link {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+}
+button.link.danger { color: var(--danger); }
+
+.flash { padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
+.flash-ok { background: var(--ok-bg); }
+.flash-error { background: var(--error-bg); color: var(--danger); }
+
+h1 .badge { vertical-align: middle; margin-left: 8px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.badge-draft { background: #fff4e5; color: #9a5b00; }
+.badge-posted { background: var(--ok-bg); color: var(--accent-dark); }
+
+.details { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; margin: 0; }
+.details dt { color: var(--muted); }
+.details dd { margin: 0; }
+
+.toolbar { display: flex; gap: 12px; margin: 16px 0; }
+.toolbar form { margin: 0; }

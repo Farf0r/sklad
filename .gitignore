@@ -1,0 +1,27 @@
+# секреты и локальные настройки
+.env
+*.local
+
+# виртуальное окружение и кэш Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# результаты проверок
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# логи и локальные базы
+logs/
+*.log
+*.db
+*.sqlite3
+
+# IDE и ОС
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

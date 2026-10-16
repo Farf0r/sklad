@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Склад{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Склад</a>
+  {% if user %}
+  <nav class="menu">
+    <a href="/">Главная</a>
+  </nav>
+  <div class="account">
+    <span>{{ user.username }} · {{ "администратор" if user.role == "admin" else "кладовщик" }}</span>
+    <form method="post" action="/logout"><button class="link">Выйти</button></form>
+  </div>
+  {% endif %}
+</header>
+<main class="container">
+  {% for category, message in pop_flashes(request) %}
+  <div class="flash flash-{{ category }}">{{ message }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

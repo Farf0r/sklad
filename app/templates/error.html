@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Ошибка {{ status_code }} — Склад{% endblock %}
+{% block content %}
+<div class="card narrow">
+  <h1>Ошибка {{ status_code }}</h1>
+  <p>{{ message }}</p>
+  <p><a href="/">На главную</a></p>
+</div>
+{% endblock %}
