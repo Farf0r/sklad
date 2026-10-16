@@ -12,6 +12,8 @@
   {% if user %}
   <nav class="menu">
     <a href="/">Главная</a>
+    <a href="/materials">Материалы</a>
+    <a href="/units">Единицы измерения</a>
   </nav>
   <div class="account">
     <span>{{ user.username }} · {{ "администратор" if user.role == "admin" else "кладовщик" }}</span>
