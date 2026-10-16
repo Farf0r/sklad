@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Материал — Склад{% endblock %}
+{% block content %}
+<h1>{{ "Изменить материал" if material else "Новый материал" }}</h1>
+<div class="card">
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  {% if not units %}
+  <p>Сначала <a href="/units/new">добавьте единицу измерения</a>.</p>
+  {% else %}
+  <form method="post" class="form">
+    <label>Наименование
+      <input name="name" value="{{ form.name or '' }}" maxlength="200" required>
+      {% if errors.name %}<span class="error">{{ errors.name }}</span>{% endif %}
+    </label>
+    <label>Единица измерения
+      <select name="unit_id" required>
+        <option value="">— выберите —</option>
+        {% for unit in units %}
+        <option value="{{ unit.id }}" {% if form.unit_id | string == unit.id | string %}selected{% endif %}>{{ unit.name }} ({{ unit.short_name }})</option>
+        {% endfor %}
+      </select>
+      {% if errors.unit_id %}<span class="error">{{ errors.unit_id }}</span>{% endif %}
+    </label>
+    <label>Описание
+      <textarea name="description" rows="3" maxlength="500">{{ form.description or '' }}</textarea>
+      {% if errors.description %}<span class="error">{{ errors.description }}</span>{% endif %}
+    </label>
+    {% if material %}
+    <p class="hint">Остаток: <b>{{ material.stock | num }} {{ material.unit.short_name }}</b>. Он меняется только при проведении поступлений.</p>
+    {% endif %}
+    <div class="form-actions">
+      <button class="btn">Сохранить</button>
+      <a href="/materials">Отмена</a>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
