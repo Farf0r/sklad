@@ -12,6 +12,7 @@
   {% if user %}
   <nav class="menu">
     <a href="/">Главная</a>
+    <a href="/suppliers">Поставщики</a>
   </nav>
   <div class="account">
     <span>{{ user.username }} · {{ "администратор" if user.role == "admin" else "кладовщик" }}</span>
