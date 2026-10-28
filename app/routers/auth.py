@@ -48,7 +48,7 @@ def login_page(request: Request):
 
 
 @pages.post("/login")
-def login_submit(
+def login_submit(  # nosec B107 — пустая строка по умолчанию у поля формы, а не пароль в коде
     request: Request,
     db: DbSession,
     username: Annotated[str, Form()] = "",
