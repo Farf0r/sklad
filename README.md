@@ -57,13 +57,19 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
    cp .env.example .env        # Linux / macOS
    ```
 
-4. Создайте администратора (пароль спросит в консоли, не короче 8 символов):
+4. Создайте таблицы в базе (применить миграции):
+
+   ```bash
+   make migrate
+   ```
+
+5. Создайте администратора (пароль спросит в консоли, не короче 8 символов):
 
    ```bash
    make createadmin
    ```
 
-5. Запустите приложение:
+6. Запустите приложение:
 
    ```bash
    make run
@@ -71,7 +77,7 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 
    Веб-интерфейс: http://127.0.0.1:8000, Swagger: http://127.0.0.1:8000/docs, проверка работоспособности: http://127.0.0.1:8000/health.
 
-Таблицы в БД создаются автоматически при запуске. Миграции (Alembic) появятся в следующей версии.
+Схема БД создаётся и изменяется только миграциями Alembic (`migrations/versions/`). После `git pull` с новыми миграциями выполните `make migrate`.
 
 ## Команды
 
@@ -79,6 +85,7 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 |---|---|
 | `make setup` | создаёт виртуальное окружение `.venv` и ставит зависимости |
 | `make run` | запускает приложение локально с автоперезагрузкой |
+| `make migrate` | применяет миграции: приводит схему БД к последней версии |
 | `make test` | автотесты (pytest) |
 | `make quality` | проверка стиля и статический анализ (ruff) |
 | `make format` | автоматически исправляет форматирование |
@@ -96,6 +103,7 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 
 uvicorn app.main:app --reload            # make run
+python -m app.cli migrate                # make migrate
 pytest                                   # make test
 ruff check . ; ruff format --check .     # make quality
 python -m app.cli create-user --username admin --role admin
@@ -169,6 +177,7 @@ app/
   services/          бизнес-логика и правила предметной области
   routers/           адреса API (/api/...) и веб-страниц
   templates/         HTML-шаблоны
+migrations/          миграции схемы БД (Alembic), alembic.ini — их настройки
 tests/               автотесты
 docs/                описание API, схема данных, развёртывание
 deploy/

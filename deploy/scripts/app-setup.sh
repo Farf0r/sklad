@@ -32,7 +32,7 @@ echo "== Код и зависимости (владелец root: приложе
 python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install -q --upgrade pip
 "$APP_DIR/.venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
-"$APP_DIR/.venv/bin/python" -m compileall -q "$APP_DIR/app"
+"$APP_DIR/.venv/bin/python" -m compileall -q "$APP_DIR/app" "$APP_DIR/migrations"
 chown -R root:root "$APP_DIR"
 chmod -R u=rwX,go=rX "$APP_DIR"
 
@@ -54,6 +54,10 @@ echo "== Служба sklad"
 install -m 644 "$APP_DIR/deploy/sklad.service" /etc/systemd/system/sklad.service
 install -m 755 "$APP_DIR/deploy/scripts/sklad-cli.sh" /usr/local/sbin/sklad-cli
 install -m 755 "$APP_DIR/deploy/scripts/app-update.sh" /usr/local/sbin/sklad-update
+
+echo "== Миграции базы данных"
+/usr/local/sbin/sklad-cli migrate
+
 systemctl daemon-reload
 systemctl enable sklad
 systemctl restart sklad

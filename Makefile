@@ -6,7 +6,7 @@ else
     VENV_PY = .venv/bin/python
 endif
 
-.PHONY: setup run test quality format verify createadmin
+.PHONY: setup run migrate test quality format verify createadmin
 
 setup:
 	$(PYTHON) -m venv .venv
@@ -15,6 +15,9 @@ setup:
 
 run:
 	$(VENV_PY) -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+migrate:
+	$(VENV_PY) -m app.cli migrate
 
 test:
 	$(VENV_PY) -m pytest
