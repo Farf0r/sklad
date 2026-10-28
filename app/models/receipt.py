@@ -25,7 +25,7 @@ class Receipt(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id"))
-    receipt_date: Mapped[date] = mapped_column(Date)
+    receipt_date: Mapped[date] = mapped_column(Date, index=True)
     status: Mapped[str] = mapped_column(String(10), default="draft")
     comment: Mapped[str | None] = mapped_column(String(500))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -56,7 +56,7 @@ class ReceiptItem(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     receipt_id: Mapped[int] = mapped_column(ForeignKey("receipts.id", ondelete="CASCADE"))
-    material_id: Mapped[int] = mapped_column(ForeignKey("materials.id"))
+    material_id: Mapped[int] = mapped_column(ForeignKey("materials.id"), index=True)
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3))
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
 
