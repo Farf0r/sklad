@@ -4,6 +4,9 @@
 <div class="card">
   <p>Здравствуйте, <b>{{ user.username }}</b>.</p>
   <p>Система учёта материалов, поставщиков и поступлений на склад. Выберите раздел в меню сверху.</p>
+  {% if to_order %}
+  <p class="flash flash-error">Материалов меньше минимального остатка: <b>{{ to_order }}</b>. <a href="/materials?needs_order=1">Посмотреть, что заказать</a></p>
+  {% endif %}
   <p class="muted">Версия {{ version }} · <a href="/docs">описание API (Swagger)</a></p>
 </div>
 {% endblock %}

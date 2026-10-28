@@ -6,7 +6,7 @@ from fastapi.responses import RedirectResponse
 
 from app.deps import AdminUser, CurrentUser, DbSession, WebUser
 from app.errors import AppError
-from app.forms import validate_form
+from app.forms import decimal_input, validate_form
 from app.schemas.receipt import ReceiptIn, ReceiptItemIn, ReceiptOut
 from app.services import receipts as service
 from app.services.materials import list_materials
@@ -52,11 +52,6 @@ def remove_item(receipt_id: int, item_id: int, db: DbSession, user: CurrentUser)
 @api.post("/{receipt_id}/post", response_model=ReceiptOut)
 def post_receipt(receipt_id: int, db: DbSession, user: CurrentUser):
     return service.post_receipt(db, receipt_id)
-
-
-def decimal_input(value: str) -> str:
-    # в русской раскладке дробную часть часто пишут через запятую
-    return value.strip().replace(",", ".").replace(" ", "")
 
 
 def render_new_form(request, db, user, form=None, errors=None, error=None, status_code=200):

@@ -21,6 +21,11 @@
       </select>
       {% if errors.unit_id %}<span class="error">{{ errors.unit_id }}</span>{% endif %}
     </label>
+    <label>Минимальный остаток
+      <input name="min_stock" value="{{ form.min_stock or '' }}" inputmode="decimal" placeholder="0">
+      <span class="hint">Когда остаток станет меньше, материал попадёт в список «К заказу». 0 или пусто — не отслеживать.</span>
+      {% if errors.min_stock %}<span class="error">{{ errors.min_stock }}</span>{% endif %}
+    </label>
     <label>Описание
       <textarea name="description" rows="3" maxlength="500">{{ form.description or '' }}</textarea>
       {% if errors.description %}<span class="error">{{ errors.description }}</span>{% endif %}

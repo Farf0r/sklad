@@ -6,8 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.errors import error_message, field_errors
+from app.forms import decimal_input
 from app.models.receipt import Receipt, ReceiptItem
-from app.routers.receipts import decimal_input
 from app.schemas.receipt import ReceiptItemIn
 from app.security import hash_password, verify_password
 from app.templating import format_money, format_number
