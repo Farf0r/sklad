@@ -23,7 +23,7 @@ git checkout -q --detach "$target"
 echo "== Версия кода: $(git describe --tags --always)"
 
 .venv/bin/pip install -q -r requirements.txt
-.venv/bin/python -m compileall -q app
+.venv/bin/python -m compileall -q app migrations
 chown -R root:root "$APP_DIR"
 chmod -R u=rwX,go=rX "$APP_DIR"
 
@@ -33,6 +33,12 @@ if [[ -d deploy ]]; then
     install -m 755 deploy/scripts/sklad-cli.sh /usr/local/sbin/sklad-cli
     install -m 755 deploy/scripts/app-update.sh /usr/local/sbin/sklad-update
     systemctl daemon-reload
+fi
+
+# миграции появились в версии 0.3.0; при откате на более старую версию схема не меняется
+if [[ -f alembic.ini ]]; then
+    echo "== Миграции базы данных"
+    /usr/local/sbin/sklad-cli migrate
 fi
 systemctl restart sklad
 
