@@ -1,6 +1,6 @@
 # Схема данных
 
-СУБД: PostgreSQL 16. Таблицы создаются при запуске приложения по моделям из `app/models/`.
+СУБД: PostgreSQL 16+. Таблицы описаны моделями в `app/models/`, а создаются и изменяются миграциями Alembic из `migrations/versions/` (`make migrate`).
 
 ```mermaid
 erDiagram
