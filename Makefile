@@ -6,7 +6,7 @@ else
     VENV_PY = .venv/bin/python
 endif
 
-.PHONY: setup run migrate test quality sast rules format verify mutation createadmin
+.PHONY: setup run migrate backup restore test quality sast rules format verify mutation createadmin
 
 # первоначальная настройка: окружение, зависимости, файлы .env и .env.test
 setup:
@@ -20,6 +20,14 @@ run:
 
 migrate:
 	$(VENV_PY) -m app.cli migrate
+
+# резервная копия базы из .env в каталог backups/
+backup:
+	$(VENV_PY) -m app.cli backup
+
+# make restore — из последней копии, make restore FILE=backups/имя.dump — из указанной
+restore:
+	$(VENV_PY) -m app.cli restore $(FILE)
 
 # тесты на тестовой базе из .env.test, отчёты в reports/
 test:
