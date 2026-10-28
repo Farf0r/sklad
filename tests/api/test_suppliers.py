@@ -34,6 +34,7 @@ def test_duplicate_inn(user_client):
     user_client.post("/api/suppliers", json=SUPPLIER)
     response = user_client.post("/api/suppliers", json={**SUPPLIER, "name": "Другое название"})
     assert response.status_code == 409
+    assert response.json()["detail"] == "Поставщик с таким названием или ИНН уже есть"
 
 
 def test_update_supplier(user_client):

@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import (
     CheckConstraint,
@@ -65,4 +65,5 @@ class ReceiptItem(Base):
 
     @property
     def amount(self) -> Decimal:
-        return (self.quantity * self.price).quantize(Decimal("0.01"))
+        # деньги округляются до копеек по обычному правилу: 0,825 → 0,83
+        return (self.quantity * self.price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

@@ -47,3 +47,4 @@ def test_cannot_delete_unit_used_by_material(admin_client):
     admin_client.post("/api/materials", json={"name": "Кирпич", "unit_id": unit_id})
     response = admin_client.delete(f"/api/units/{unit_id}")
     assert response.status_code == 409
+    assert "используется в материалах (1)" in response.json()["detail"]

@@ -8,4 +8,24 @@ select = ["E", "W", "F", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-q"
+addopts = [
+    "-q",
+    "--strict-markers",
+    "--cov=app",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:reports/coverage",
+    "--cov-report=xml:reports/coverage.xml",
+    "--junitxml=reports/junit.xml",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+# порог покрытия: понижать его запрещено (CONTRIBUTING.md, раздел «Запрещено»)
+fail_under = 95
+show_missing = true
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]

@@ -68,3 +68,21 @@ def test_materials_web_form_shows_errors(user_client, unit_id):
     response = user_client.post("/materials/new", data={"name": "", "unit_id": ""})
     assert response.status_code == 422
     assert "Поле не может быть пустым" in response.text
+
+
+def test_material_with_fractional_stock_cannot_be_deleted(admin_client, unit_id):
+    material = admin_client.post("/api/materials", json={"name": "Цемент", "unit_id": unit_id})
+    supplier = admin_client.post(
+        "/api/suppliers", json={"name": "ООО Ромашка", "inn": "7701234567"}
+    )
+    receipt = admin_client.post(
+        "/api/receipts",
+        json={
+            "supplier_id": supplier.json()["id"],
+            "items": [{"material_id": material.json()["id"], "quantity": "0.5", "price": "1"}],
+        },
+    ).json()
+    admin_client.post(f"/api/receipts/{receipt['id']}/post")
+    response = admin_client.delete(f"/api/materials/{material.json()['id']}")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Нельзя удалить материал, пока он есть на складе"
