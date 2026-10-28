@@ -31,16 +31,19 @@ chmod -R u=rwX,go=rX "$APP_DIR"
 if [[ -d deploy ]]; then
     install -m 644 deploy/sklad.service /etc/systemd/system/sklad.service
     install -m 755 deploy/scripts/sklad-cli.sh /usr/local/sbin/sklad-cli
+    install -m 755 deploy/scripts/app-update.sh /usr/local/sbin/sklad-update
     systemctl daemon-reload
 fi
 systemctl restart sklad
 
+echo "== Проверка: ждём ответа приложения"
 for _ in $(seq 1 20); do
-    if curl -fsS http://127.0.0.1:8000/health; then
-        echo
+    if health=$(curl -fs http://127.0.0.1:8000/health); then
+        echo "$health"
         exit 0
     fi
     sleep 1
 done
-echo "После обновления приложение не отвечает: journalctl -u sklad -n 50" >&2
+echo "После обновления приложение не отвечает 20 секунд. Последние строки журнала службы:" >&2
+journalctl -u sklad -n 15 --no-pager >&2
 exit 1
