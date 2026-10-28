@@ -1,8 +1,9 @@
 """Общая подготовка тестов.
 
 Тесты работают только с отдельной тестовой базой PostgreSQL из TEST_DATABASE_URL
-(переменная окружения или файл .env.test). Перед запуском схема создаётся миграциями,
-перед каждым тестом все таблицы очищаются, поэтому тесты не зависят друг от друга.
+(переменная окружения или файл .env.test). Перед первым тестом, которому нужна база,
+схема создаётся миграциями, перед каждым таким тестом все таблицы очищаются, поэтому
+тесты не зависят друг от друга. Unit-тесты (tests/unit) к базе не обращаются.
 """
 
 import os
@@ -66,14 +67,18 @@ def drop_everything():
     metadata.drop_all(bind=engine)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def database_schema():
     drop_everything()
     migrate()
 
 
 @pytest.fixture(autouse=True)
-def clean_tables(database_schema):
+def clean_tables(request):
+    # unit-тестам база не нужна: они проходят, даже если PostgreSQL недоступен
+    if "unit" in request.node.path.parts:
+        return
+    request.getfixturevalue("database_schema")
     with engine.begin() as conn:
         conn.execute(text(f"TRUNCATE {TABLES} RESTART IDENTITY CASCADE"))
 

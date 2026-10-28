@@ -16,8 +16,10 @@ reports/
 .coverage
 htmlcov/
 
-# логи и локальные базы
+# логи, резервные копии и локальные базы
 logs/
+backups/
+*.dump
 *.log
 *.db
 *.sqlite3

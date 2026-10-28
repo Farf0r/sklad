@@ -86,6 +86,8 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 | `make setup` | первоначальная настройка: окружение `.venv`, зависимости, файлы `.env` и `.env.test` |
 | `make run` | запускает приложение локально с автоперезагрузкой |
 | `make migrate` | применяет миграции: приводит схему БД к последней версии |
+| `make backup` | резервная копия базы из `.env` в каталог `backups/` |
+| `make restore` | восстановление базы из последней копии (`make restore FILE=backups/имя.dump` — из указанной) |
 | `make test` | автотесты на тестовой базе PostgreSQL с отчётом о покрытии (`reports/`) |
 | `make quality` | проверка стиля и статический анализ (ruff) |
 | `make sast` | поиск уязвимостей в коде (bandit) |
@@ -107,6 +109,8 @@ pip install -r requirements-dev.txt
 
 uvicorn app.main:app --reload            # make run
 python -m app.cli migrate                # make migrate
+python -m app.cli backup                 # make backup
+python -m app.cli restore                # make restore
 pytest                                   # make test
 ruff check . ; ruff format --check .     # make quality
 bandit -c pyproject.toml -r app migrations tools   # make sast
@@ -128,6 +132,7 @@ python -m app.cli create-user --username admin --role admin
 | `LOG_FILE` | нет | путь к файлу журнала; если не задан, журнал пишется только в консоль |
 | `SESSION_MAX_AGE` | нет | время жизни сессии в секундах (по умолчанию 8 часов) |
 | `BCRYPT_ROUNDS` | нет | сложность хеширования паролей (по умолчанию 12) |
+| `BACKUP_DIR` | нет | каталог резервных копий (по умолчанию `backups`) |
 
 Настройки читаются из переменных окружения или из файла `.env`. Файл `.env` содержит пароли и **не попадает в Git** (см. `.gitignore`); в репозитории лежит только образец `.env.example`.
 
@@ -149,6 +154,10 @@ python -m app.cli create-user --username admin --role admin
 2. Создайте файл `.env.test` по образцу `.env.test.example` и впишите пароль пользователя `sklad` (`make setup` делает это сам, если файла ещё нет).
 
 Структура тестов, состав `make verify`, отчёты, покрытие требований ТЗ и мутационное тестирование — в [docs/testing.md](docs/testing.md).
+
+## Резервное копирование
+
+`make backup` сохраняет всю базу (схему и данные) одним файлом в `backups/`, `make restore` возвращает базу к состоянию из копии; перед восстановлением текущее состояние тоже сохраняется. Нужны утилиты PostgreSQL `pg_dump` и `pg_restore`: под Windows они ставятся вместе с PostgreSQL и находятся автоматически. Подробно — в [docs/backup.md](docs/backup.md).
 
 ## Развёртывание на сервере
 
@@ -177,6 +186,8 @@ app/
   main.py            сборка приложения: middleware, обработчики ошибок, роутеры
   config.py          настройки из переменных окружения
   database.py        подключение к БД
+  migrate.py         применение миграций
+  backup.py          резервная копия и восстановление (pg_dump / pg_restore)
   logging_config.py  формат журнала
   middleware.py      журнал запросов и X-Request-ID
   errors.py          ошибки приложения и их перевод в HTTP-ответы
@@ -189,7 +200,7 @@ app/
 migrations/          миграции схемы БД (Alembic), alembic.ini — их настройки
 tests/               автотесты: unit/, api/, integration/
 tools/               настройка .env, проверка правил проекта, мутационное тестирование
-docs/                описание API, схема данных, развёртывание
+docs/                описание API, схема данных, тесты, резервные копии, развёртывание
 deploy/
   sklad.service      systemd-служба приложения
   sklad.env.example  образец настроек сервера
@@ -201,5 +212,6 @@ deploy/
 - [Описание API](docs/api.md), интерактивно: `/docs`
 - [Схема данных](docs/schema.md)
 - [Тестирование и проверки](docs/testing.md)
+- [Резервное копирование и восстановление](docs/backup.md)
 - [Развёртывание на Linux-серверах](docs/deploy.md)
 - [Правила внесения изменений](CONTRIBUTING.md)
