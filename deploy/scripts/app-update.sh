@@ -35,6 +35,15 @@ if [[ -d deploy ]]; then
     systemctl daemon-reload
 fi
 
+# резервное копирование появилось в версии 0.3.0
+if [[ -f app/backup.py ]]; then
+    command -v pg_dump >/dev/null || DEBIAN_FRONTEND=noninteractive apt-get install -y -q postgresql-client
+    install -d -m 750 -o sklad -g sklad /var/backups/sklad
+    grep -q '^BACKUP_DIR=' /etc/sklad/sklad.env || echo "BACKUP_DIR=/var/backups/sklad" >> /etc/sklad/sklad.env
+    echo "== Резервная копия базы перед обновлением"
+    /usr/local/sbin/sklad-cli backup
+fi
+
 # миграции появились в версии 0.3.0; при откате на более старую версию схема не меняется
 if [[ -f alembic.ini ]]; then
     echo "== Миграции базы данных"

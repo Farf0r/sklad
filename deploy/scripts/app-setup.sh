@@ -22,7 +22,8 @@ fi
 
 echo "== Пакеты"
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -q python3 python3-venv
+# postgresql-client — утилиты pg_dump и pg_restore для резервного копирования
+apt-get install -y -q python3 python3-venv postgresql-client
 
 echo "== Пользователь sklad: без пароля и без входа в систему, только для запуска приложения"
 id sklad &>/dev/null || useradd --system --user-group --no-create-home \
@@ -47,8 +48,13 @@ if [[ ! -f $ENV_FILE ]]; then
         -e "s|^SECRET_KEY=.*|SECRET_KEY=$secret|" \
         "$APP_DIR/deploy/sklad.env.example" > "$ENV_FILE"
 fi
+# в файлах, созданных версией 0.2.0, этой строки ещё нет
+grep -q '^BACKUP_DIR=' "$ENV_FILE" || echo "BACKUP_DIR=/var/backups/sklad" >> "$ENV_FILE"
 chown root:sklad "$ENV_FILE"
 chmod 640 "$ENV_FILE"
+
+echo "== Каталог резервных копий /var/backups/sklad"
+install -d -m 750 -o sklad -g sklad /var/backups/sklad
 
 echo "== Служба sklad"
 install -m 644 "$APP_DIR/deploy/sklad.service" /etc/systemd/system/sklad.service
