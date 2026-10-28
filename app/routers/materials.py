@@ -5,19 +5,20 @@ from fastapi.responses import RedirectResponse
 
 from app.deps import AdminUser, CurrentUser, DbSession, WebUser
 from app.errors import AppError
-from app.forms import validate_form
+from app.forms import decimal_input, validate_form
 from app.schemas.material import MaterialIn, MaterialOut
 from app.services import materials as service
 from app.services.units import list_units
-from app.templating import flash, templates
+from app.templating import flash, format_number, templates
 
 api = APIRouter(prefix="/api/materials", tags=["Материалы"])
 pages = APIRouter(prefix="/materials", include_in_schema=False)
 
 
 @api.get("", response_model=list[MaterialOut])
-def list_materials(db: DbSession, user: CurrentUser):
-    return service.list_materials(db)
+def list_materials(db: DbSession, user: CurrentUser, needs_order: bool = False):
+    """needs_order=true — только материалы, остаток которых меньше минимального."""
+    return service.list_materials(db, needs_order)
 
 
 @api.post("", response_model=MaterialOut, status_code=201)
@@ -56,9 +57,21 @@ def render_form(
     )
 
 
+def material_form(name, unit_id, min_stock, description):
+    form = {"name": name, "unit_id": unit_id, "min_stock": min_stock, "description": description}
+    # пустое поле минимального остатка значит «не отслеживать»
+    clean = {**form, "min_stock": decimal_input(min_stock) or "0"}
+    return form, clean
+
+
 @pages.get("")
-def materials_page(request: Request, db: DbSession, user: WebUser):
-    context = {"user": user, "materials": service.list_materials(db)}
+def materials_page(request: Request, db: DbSession, user: WebUser, needs_order: bool = False):
+    context = {
+        "user": user,
+        "materials": service.list_materials(db, needs_order),
+        "needs_order": needs_order,
+        "to_order": len(service.list_materials(db, needs_order=True)),
+    }
     return templates.TemplateResponse(request, "materials/list.html", context)
 
 
@@ -74,10 +87,11 @@ def new_material_submit(
     user: WebUser,
     name: Annotated[str, Form()] = "",
     unit_id: Annotated[str, Form()] = "",
+    min_stock: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
 ):
-    form = {"name": name, "unit_id": unit_id, "description": description}
-    data, errors = validate_form(MaterialIn, form)
+    form, clean = material_form(name, unit_id, min_stock, description)
+    data, errors = validate_form(MaterialIn, clean)
     if errors:
         return render_form(request, db, user, form=form, errors=errors, status_code=422)
     try:
@@ -96,6 +110,7 @@ def edit_material_page(request: Request, material_id: int, db: DbSession, user: 
     form = {
         "name": material.name,
         "unit_id": material.unit_id,
+        "min_stock": format_number(material.min_stock),
         "description": material.description or "",
     }
     return render_form(request, db, user, material=material, form=form)
@@ -109,11 +124,12 @@ def edit_material_submit(
     user: WebUser,
     name: Annotated[str, Form()] = "",
     unit_id: Annotated[str, Form()] = "",
+    min_stock: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
 ):
     material = service.get_material(db, material_id)
-    form = {"name": name, "unit_id": unit_id, "description": description}
-    data, errors = validate_form(MaterialIn, form)
+    form, clean = material_form(name, unit_id, min_stock, description)
+    data, errors = validate_form(MaterialIn, clean)
     if errors:
         return render_form(
             request, db, user, material=material, form=form, errors=errors, status_code=422

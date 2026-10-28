@@ -26,6 +26,7 @@ def insert_reference_data(conn):
     "statement",
     [
         "UPDATE materials SET stock = -1",
+        "UPDATE materials SET min_stock = -1",
         "INSERT INTO receipt_items (receipt_id, material_id, quantity, price) VALUES (1, 1, 0, 10)",
         "INSERT INTO receipt_items (receipt_id, material_id, quantity, price) VALUES (1, 1, 1, -1)",
         "UPDATE receipts SET status = 'deleted'",
