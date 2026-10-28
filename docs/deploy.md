@@ -226,6 +226,8 @@ sudo sklad-cli create-user --username admin --role admin
 
 Скрипт спросит пароль пользователя БД `sklad` — тот же, что вводили на `sklad-db`. После этого приложение открывается с ноутбука: http://192.168.56.10:8000.
 
+Если приложение не ответило, скрипт сразу покажет последние строки журнала. `password authentication failed for user "sklad"` означает, что пароль не совпал с заданным на `sklad-db`: исправить его в `/etc/sklad/sklad.env` (`sudo nano /etc/sklad/sklad.env`, пароль стоит между `sklad:` и `@`) и выполнить `sudo systemctl restart sklad`.
+
 Что делает `app-setup.sh`:
 
 1. Ставит Python и создаёт системного пользователя `sklad` (без пароля, без домашнего каталога, оболочка `nologin`).
@@ -243,7 +245,7 @@ sudo sklad-cli create-user --username admin --role admin
 | `/etc/systemd/system/sklad.service` | `root:root`, 644 | описание службы |
 | `/usr/local/sbin/sklad-cli`, `sklad-update` | `root:root`, 755 | служебные команды, запускаются через `sudo` |
 
-Журнал приложения пишется в стандартный вывод, его собирает systemd (journald) — отдельный файл не нужен.
+Журнал приложения пишется в стандартный вывод, его собирает systemd (journald) — отдельный файл не нужен. Журнал системных служб может читать только root, поэтому `journalctl` запускается через `sudo`.
 
 ### Служба sklad.service
 
@@ -278,10 +280,10 @@ sudo systemctl restart sklad         # перезапустить, наприм�
 systemctl is-enabled sklad           # enabled — запускается при загрузке
 systemctl cat sklad                  # итоговое описание службы со всеми изменениями
 
-journalctl -u sklad -f               # журнал в реальном времени (выход Ctrl+C)
-journalctl -u sklad -n 50            # последние 50 строк
-journalctl -u sklad -b               # с последней загрузки
-journalctl -u sklad -p warning       # только предупреждения и ошибки
+sudo journalctl -u sklad -f          # журнал в реальном времени (выход Ctrl+C)
+sudo journalctl -u sklad -n 50       # последние 50 строк
+sudo journalctl -u sklad -b          # с последней загрузки
+sudo journalctl -u sklad -p warning  # только предупреждения и ошибки
 ```
 
 **Изменить настройку**: `sudo nano /etc/sklad/sklad.env`, затем `sudo systemctl restart sklad`.
@@ -301,7 +303,7 @@ sudo sklad-update v0.2.0
 ```bash
 systemctl status sklad
 curl -s localhost:8000/health                  # {"status":"ok",...}
-journalctl -u sklad -b
+sudo journalctl -u sklad -b
 ```
 
 Порядок загрузки не важен: если приложение стартовало раньше PostgreSQL, оно завершается с ошибкой подключения, а systemd перезапускает его каждые 5 секунд, пока БД не станет доступна.
@@ -311,7 +313,7 @@ journalctl -u sklad -b
 ```bash
 systemctl is-active sklad                      # active — приложение работает
 curl -s localhost:8000/health                  # {"status":"error","db":"unavailable",...}, код 503
-journalctl -u sklad -n 20                      # ERROR ... БД недоступна
+sudo journalctl -u sklad -n 20                 # ERROR ... БД недоступна
 nc -zv sklad-db 5432                           # Connection refused — порт не слушается
 ```
 
@@ -324,17 +326,17 @@ systemctl show -p MainPID --value sklad        # PID главного проце
 ps -o user,pid,etime,cmd -p "$(systemctl show -p MainPID --value sklad)"
 pgrep -a -u sklad                              # все процессы пользователя sklad
 sudo ss -tlnp | grep 8000                      # кто слушает порт 8000
-journalctl -u sklad --since "10 min ago"
+sudo journalctl -u sklad --since "10 min ago"
 ```
 
-На `sklad-db`: `sudo ss -tlnp | grep 5432`, `journalctl -u postgresql@17-main`, файл `/var/log/postgresql/postgresql-17-main.log`.
+На `sklad-db`: `sudo ss -tlnp | grep 5432`, `sudo journalctl -u postgresql@17-main`, файл `/var/log/postgresql/postgresql-17-main.log`.
 
 **Перезапуск после сбоя.**
 
 ```bash
 sudo systemctl kill -s KILL sklad              # «убить» процесс, как при аварии
 sleep 6; systemctl status sklad                # снова active, PID новый
-journalctl -u sklad -n 10                      # killed, status=9/KILL ... Scheduled restart job
+sudo journalctl -u sklad -n 10                 # killed, status=9/KILL ... Scheduled restart job
 ```
 
 **Изменение параметра службы и восстановление.** Изменения вносятся отдельным файлом поверх основного, поэтому их легко отменить:
