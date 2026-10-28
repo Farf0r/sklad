@@ -14,7 +14,7 @@ Closes #
 - [ ] новая логика покрыта тестами
 - [ ] документация (`README.md`, `docs/`) обновлена, если менялись API, таблицы или настройки
 - [ ] в изменениях нет `.env`, паролей и других секретов
-- [ ] изменения критических файлов (`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `.gitignore`, `.env.example`, `CONTRIBUTING.md`) перечислены ниже
+- [ ] изменения критических файлов (`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `.gitignore`, `.env.example`, `CONTRIBUTING.md`, `deploy/`) перечислены ниже
 
 ## Изменённые критические файлы
 
