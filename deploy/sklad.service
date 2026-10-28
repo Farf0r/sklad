@@ -1,0 +1,29 @@
+[Unit]
+Description=Склад — веб-приложение складского учёта
+Documentation=https://github.com/Farf0r/sklad/blob/develop/docs/deploy.md
+After=network-online.target
+Wants=network-online.target
+# перезапускать без ограничения числа попыток (например, пока не поднялась БД)
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=sklad
+Group=sklad
+WorkingDirectory=/opt/sklad
+EnvironmentFile=/etc/sklad/sklad.env
+ExecStart=/opt/sklad/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# служба не может повысить себе права и ничего не меняет на диске
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
