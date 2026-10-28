@@ -37,39 +37,35 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 
 Нужны: Python 3.12+, PostgreSQL 16, Git и GNU make (на Windows: `winget install ezwinports.make`).
 
-1. Создайте базу и пользователя (Windows: «SQL Shell (psql)» из меню Пуск, вход под `postgres`):
+1. Создайте пользователя, рабочую и тестовую базы (Windows: «SQL Shell (psql)» из меню Пуск, вход под `postgres`):
 
    ```sql
    CREATE USER sklad WITH PASSWORD 'придумайте-пароль';
    CREATE DATABASE sklad OWNER sklad;
+   CREATE DATABASE sklad_test OWNER sklad;
    ```
 
-2. Установите зависимости:
+2. Первоначальная настройка — одна команда:
 
    ```bash
    make setup
    ```
 
-3. Создайте файл настроек и впишите в него пароль от БД и свой `SECRET_KEY`:
+   Она создаёт виртуальное окружение `.venv`, ставит зависимости с зафиксированными версиями (`requirements*.txt`) и, если их ещё нет, файлы настроек `.env` и `.env.test` из образцов: спрашивает пароль пользователя `sklad` и генерирует `SECRET_KEY`.
 
-   ```bash
-   copy .env.example .env      # Windows
-   cp .env.example .env        # Linux / macOS
-   ```
-
-4. Создайте таблицы в базе (применить миграции):
+3. Создайте таблицы в базе (применить миграции):
 
    ```bash
    make migrate
    ```
 
-5. Создайте администратора (пароль спросит в консоли, не короче 8 символов):
+4. Создайте администратора (пароль спросит в консоли, не короче 8 символов):
 
    ```bash
    make createadmin
    ```
 
-6. Запустите приложение:
+5. Запустите приложение:
 
    ```bash
    make run
@@ -77,19 +73,24 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 
    Веб-интерфейс: http://127.0.0.1:8000, Swagger: http://127.0.0.1:8000/docs, проверка работоспособности: http://127.0.0.1:8000/health.
 
+6. Проверьте, что всё работает: `make verify`.
+
 Схема БД создаётся и изменяется только миграциями Alembic (`migrations/versions/`). После `git pull` с новыми миграциями выполните `make migrate`.
 
 ## Команды
 
 | Команда | Что делает |
 |---|---|
-| `make setup` | создаёт виртуальное окружение `.venv` и ставит зависимости |
+| `make setup` | первоначальная настройка: окружение `.venv`, зависимости, файлы `.env` и `.env.test` |
 | `make run` | запускает приложение локально с автоперезагрузкой |
 | `make migrate` | применяет миграции: приводит схему БД к последней версии |
-| `make test` | автотесты (pytest) |
+| `make test` | автотесты на тестовой базе PostgreSQL с отчётом о покрытии (`reports/`) |
 | `make quality` | проверка стиля и статический анализ (ruff) |
+| `make sast` | поиск уязвимостей в коде (bandit) |
+| `make rules` | проверка правил проекта: тесты не пропущены, пороги не снижены |
 | `make format` | автоматически исправляет форматирование |
-| `make verify` | **все обязательные проверки**: `quality` + `test` |
+| `make verify` | **все обязательные проверки**: `rules` + `quality` + `sast` + `test` |
+| `make mutation` | мутационное тестирование: тесты должны замечать ошибки в правилах |
 | `make createadmin` | создаёт пользователя-администратора |
 
 Кладовщика можно создать так: `python -m app.cli create-user --username ivanov --role storekeeper`.
@@ -106,6 +107,8 @@ uvicorn app.main:app --reload            # make run
 python -m app.cli migrate                # make migrate
 pytest                                   # make test
 ruff check . ; ruff format --check .     # make quality
+bandit -c pyproject.toml -r app migrations tools   # make sast
+python tools/check_rules.py              # make rules
 python -m app.cli create-user --username admin --role admin
 ```
 
@@ -138,8 +141,12 @@ python -m app.cli create-user --username admin --role admin
 
 ## Тесты
 
-`make test` запускает тесты на временной SQLite-базе, рабочая БД из `.env` не используется.
-Чтобы прогнать их на PostgreSQL, создайте отдельную базу и укажите её в `TEST_DATABASE_URL`.
+Тесты работают на отдельной базе PostgreSQL `sklad_test`, рабочая база из `.env` не используется. Один раз:
+
+1. Создайте базу («SQL Shell (psql)», вход под `postgres`): `CREATE DATABASE sklad_test OWNER sklad;`
+2. Создайте файл `.env.test` по образцу `.env.test.example` и впишите пароль пользователя `sklad` (`make setup` делает это сам, если файла ещё нет).
+
+Структура тестов, состав `make verify`, отчёты, покрытие требований ТЗ и мутационное тестирование — в [docs/testing.md](docs/testing.md).
 
 ## Развёртывание на сервере
 
@@ -178,7 +185,8 @@ app/
   routers/           адреса API (/api/...) и веб-страниц
   templates/         HTML-шаблоны
 migrations/          миграции схемы БД (Alembic), alembic.ini — их настройки
-tests/               автотесты
+tests/               автотесты: unit/, api/, integration/
+tools/               настройка .env, проверка правил проекта, мутационное тестирование
 docs/                описание API, схема данных, развёртывание
 deploy/
   sklad.service      systemd-служба приложения
@@ -190,5 +198,6 @@ deploy/
 
 - [Описание API](docs/api.md), интерактивно: `/docs`
 - [Схема данных](docs/schema.md)
+- [Тестирование и проверки](docs/testing.md)
 - [Развёртывание на Linux-серверах](docs/deploy.md)
 - [Правила внесения изменений](CONTRIBUTING.md)
