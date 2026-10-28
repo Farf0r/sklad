@@ -142,3 +142,75 @@ ssh root@192.168.56.10                                   # Permission denied
 | `~sysadmin/.ssh` | `sysadmin`, 700 | иначе sshd не примет ключ |
 | `~sysadmin/.ssh/authorized_keys` | `sysadmin`, 600 | открытые ключи, с которыми можно войти |
 | `/etc/ssh/sshd_config.d/10-sklad.conf` | `root`, 644 | наши настройки SSH, основной файл не трогаем |
+
+## 3. Сервер БД
+
+На `sklad-db`:
+
+```bash
+sudo bash ~/sklad/deploy/scripts/db-setup.sh
+```
+
+Скрипт спросит пароль для пользователя БД `sklad` (латиница и цифры, не короче 12 символов). Пароль нигде не сохраняется, его нужно будет ввести ещё раз при настройке сервера приложения.
+
+Что делает скрипт:
+
+1. Ставит PostgreSQL (в Debian 13 — версия 17).
+2. В `/etc/postgresql/17/main/conf.d/sklad.conf` задаёт `listen_addresses = 'localhost,192.168.56.11'`: PostgreSQL слушает только себя и внутреннюю сеть.
+3. Добавляет в `pg_hba.conf` одно правило: `host sklad sklad 192.168.56.10/32 scram-sha-256` — пользователь `sklad`, только к базе `sklad`, только с сервера приложения, только по паролю. Остальные подключения по сети отклоняются.
+4. Создаёт пользователя и базу с минимальными правами (см. таблицу ниже).
+5. Открывает в firewall порт 5432 только для `192.168.56.10`.
+6. Добавляет `After=network-online.target` для PostgreSQL, чтобы после перезагрузки он запускался, когда адрес внутренней сети уже поднят.
+
+Повторный запуск безопасен: уже созданные пользователь, база и правила не дублируются, пароль меняется на новый.
+
+| Кто / что | Права | Почему |
+|---|---|---|
+| пользователь БД `sklad` | вход по паролю; не суперпользователь, не может создавать базы, роли и реплицировать; не больше 20 подключений | приложению больше не нужно |
+| база `sklad` | `CONNECT` только у `sklad`, у остальных (`PUBLIC`) отозвано | другие пользователи не подключатся к базе |
+| схема `public` в базе `sklad` | `USAGE, CREATE` только у `sklad` | приложение при запуске создаёт свои таблицы; после перехода на миграции (ЛР3) права на `CREATE` можно будет убрать у пользователя приложения |
+| системный пользователь `postgres` | создан пакетом, без пароля и входа по SSH | администрирование СУБД: `sudo -u postgres psql` |
+| `/var/lib/postgresql/17/main` | `postgres`, 700 | файлы БД доступны только СУБД |
+
+Проверка на `sklad-db`:
+
+```bash
+sudo ss -tlnp | grep 5432                      # 127.0.0.1:5432 и 192.168.56.11:5432
+sudo ufw status                                # 5432/tcp ALLOW 192.168.56.10
+sudo -u postgres psql -c '\du sklad'           # 20 connections, без лишних атрибутов
+sudo -u postgres psql -c '\l sklad'            # права на базу: sklad=c
+```
+
+**База недоступна с постороннего узла.** Защита в три слоя: firewall пропускает 5432 только с `192.168.56.10`, `pg_hba.conf` разрешает вход только с этого адреса, PostgreSQL не слушает внешний адаптер NAT. Проверка с ноутбука (он для БД посторонний):
+
+```powershell
+Test-NetConnection 192.168.56.11 -Port 22      # TcpTestSucceeded : True  — машина доступна
+Test-NetConnection 192.168.56.11 -Port 5432    # TcpTestSucceeded : False — порт БД закрыт
+```
+
+Ответ на второй команде приходит секунд через 20: firewall молча отбрасывает пакеты. С сервера приложения подключение есть:
+
+```bash
+nc -zv sklad-db 5432                           # succeeded
+```
+
+## 4. Требования к эксплуатации
+
+| № | Требование | Как обеспечено | Как проверить |
+|---|---|---|---|
+| 1 | Приложение не запускается от root | служба работает от системного пользователя `sklad` без пароля и входа; `NoNewPrivileges`, пустой `CapabilityBoundingSet` | `ps -o user= -p $(systemctl show -p MainPID --value sklad)` |
+| 2 | Лишние порты не открываются | firewall: входящие запрещены, разрешены только 22, 8000 (sklad-app) и 22, 5432 с 192.168.56.10 (sklad-db); PostgreSQL слушает только localhost и внутренний адрес | `sudo ss -tlnp`, `sudo ufw status` |
+| 3 | Пароли не хранятся в репозитории | настройки сервера в `/etc/sklad/sklad.env` (только на сервере, права 640); в репозитории образец `deploy/sklad.env.example` с заглушками; пароль БД вводится при запуске скрипта, `SECRET_KEY` генерируется на сервере | `git ls-files`, `cat deploy/sklad.env.example` |
+| 4 | Root не входит удалённо, вход только по ключам | `PermitRootLogin no`, `PasswordAuthentication no`, `AllowUsers sysadmin` | `sudo sshd -T \| grep -E 'permitroot\|passwordauth'` |
+| 5 | Приложение не может менять свой код и систему | код в `/opt/sklad` принадлежит root; `ProtectSystem=strict` делает систему для службы доступной только на чтение | `sudo runuser -u sklad -- touch /opt/sklad/x` → Permission denied |
+| 6 | Служба стартует при загрузке и после сбоя | `systemctl enable`, `Restart=on-failure` | `systemctl is-enabled sklad`, `systemctl show -p Restart sklad` |
+| 7 | БД доступна только серверу приложения | firewall + `pg_hba.conf` + `listen_addresses` | раздел 3 |
+
+Все требования проверяются одной командой на каждом сервере:
+
+```bash
+sudo bash /opt/sklad/deploy/scripts/check.sh      # на sklad-app
+sudo bash ~/sklad/deploy/scripts/check.sh         # на sklad-db
+```
+
+Скрипт печатает `OK` или `FAIL` по каждому пункту и завершается с ошибкой, если хоть один пункт не выполнен.
