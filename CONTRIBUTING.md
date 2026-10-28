@@ -60,7 +60,9 @@ make verify
 
 Изменения в этих файлах обязательно перечисляются в описании PR и проверяются ревьюером отдельно:
 
-`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `.gitignore`, `.env.example`, `CONTRIBUTING.md`, `.github/`.
+`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `.gitignore`, `.env.example`, `CONTRIBUTING.md`, `.github/`, `deploy/`.
+
+`deploy/` — критические файлы эксплуатации: от них зависят права службы, открытые порты и доступ к БД. Изменение в них проверяется на машинах (`deploy/scripts/check.sh` проходит на обоих серверах) и не может ослаблять требования из [docs/deploy.md](docs/deploy.md#4-требования-к-эксплуатации): запуск не от root, закрытые лишние порты, отсутствие паролей в репозитории.
 
 ## 7. Приёмка изменения
 

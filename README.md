@@ -8,15 +8,16 @@
 | Участник | Зона ответственности |
 |---|---|
 | Денис Третьяков ([@Farf0r](https://github.com/Farf0r)) | каркас, авторизация, единицы измерения, материалы |
-| Иван ________ | поставщики, поступления |
+| Иван Петров ([@ivan-11-p](https://github.com/ivan-11-p)) | поставщики, поступления |
 
-## Возможности (v0.1.0)
+## Возможности (v0.2.0)
 
 - вход по логину и паролю, роли «администратор» и «кладовщик»;
 - справочники: единицы измерения, материалы, поставщики;
 - поступления на склад: черновик → строки (материал, количество, цена) → проведение;
 - HTTP API в формате JSON и веб-интерфейс;
 - служебный адрес `/health`, журнал запросов и ошибок.
+- развёртывание на двух серверах Debian 13: приложение как systemd-служба, PostgreSQL на отдельной машине и доступен только серверу приложения.
 
 ## Правила предметной области
 
@@ -30,7 +31,7 @@
 
 ## Стек
 
-Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16, Jinja2, pytest, ruff.
+Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На сервере: Debian 13, systemd, ufw.
 
 ## Быстрый старт
 
@@ -132,6 +133,26 @@ python -m app.cli create-user --username admin --role admin
 `make test` запускает тесты на временной SQLite-базе, рабочая БД из `.env` не используется.
 Чтобы прогнать их на PostgreSQL, создайте отдельную базу и укажите её в `TEST_DATABASE_URL`.
 
+## Развёртывание на сервере
+
+Приложение разворачивается без контейнеров на двух машинах Debian 13: `sklad-app` (приложение как systemd-служба `sklad`) и `sklad-db` (PostgreSQL). Подробная инструкция, требования к эксплуатации и команды проверки — в [docs/deploy.md](docs/deploy.md).
+
+Кратко, после установки ОС, настройки сети и SSH-ключей:
+
+```bash
+# на обеих машинах
+sudo bash deploy/scripts/base-setup.sh
+# на sklad-db
+sudo bash deploy/scripts/db-setup.sh
+# на sklad-app (репозиторий склонирован в /opt/sklad)
+sudo bash /opt/sklad/deploy/scripts/app-setup.sh
+sudo sklad-cli create-user --username admin --role admin
+# проверка требований на каждой машине
+sudo bash deploy/scripts/check.sh
+```
+
+Настройки сервера хранятся в `/etc/sklad/sklad.env` и в репозиторий не попадают; образец — `deploy/sklad.env.example`.
+
 ## Структура проекта
 
 ```
@@ -149,11 +170,16 @@ app/
   routers/           адреса API (/api/...) и веб-страниц
   templates/         HTML-шаблоны
 tests/               автотесты
-docs/                описание API и схема данных
+docs/                описание API, схема данных, развёртывание
+deploy/
+  sklad.service      systemd-служба приложения
+  sklad.env.example  образец настроек сервера
+  scripts/           скрипты настройки серверов, обновления и проверки
 ```
 
 ## Документация
 
 - [Описание API](docs/api.md), интерактивно: `/docs`
 - [Схема данных](docs/schema.md)
+- [Развёртывание на Linux-серверах](docs/deploy.md)
 - [Правила внесения изменений](CONTRIBUTING.md)
