@@ -214,3 +214,153 @@ sudo bash ~/sklad/deploy/scripts/check.sh         # на sklad-db
 ```
 
 Скрипт печатает `OK` или `FAIL` по каждому пункту и завершается с ошибкой, если хоть один пункт не выполнен.
+
+## 5. Сервер приложения
+
+Сервер БД должен быть уже настроен. На `sklad-app`:
+
+```bash
+sudo bash /opt/sklad/deploy/scripts/app-setup.sh
+sudo sklad-cli create-user --username admin --role admin
+```
+
+Скрипт спросит пароль пользователя БД `sklad` — тот же, что вводили на `sklad-db`. После этого приложение открывается с ноутбука: http://192.168.56.10:8000.
+
+Что делает `app-setup.sh`:
+
+1. Ставит Python и создаёт системного пользователя `sklad` (без пароля, без домашнего каталога, оболочка `nologin`).
+2. Создаёт виртуальное окружение `/opt/sklad/.venv` и ставит зависимости из `requirements.txt`. Владельцем всего `/opt/sklad` делает root.
+3. Создаёт `/etc/sklad/sklad.env` из образца `deploy/sklad.env.example`: подставляет пароль БД и генерирует `SECRET_KEY`. Если файл уже есть, его не трогает.
+4. Устанавливает службу `/etc/systemd/system/sklad.service`, включает автозапуск и запускает её.
+5. Устанавливает команды `sklad-cli` (команды приложения от имени `sklad` с настройками сервера) и `sklad-update` (обновление).
+6. Открывает в firewall порт 8000 для внутренней сети и проверяет `/health`.
+
+| Путь | Владелец, права | Зачем |
+|---|---|---|
+| `/opt/sklad` | `root:root`, каталоги 755, файлы 644 | код и `.venv`: `sklad` читает, но не может изменить |
+| `/etc/sklad` | `root:sklad`, 750 | каталог настроек |
+| `/etc/sklad/sklad.env` | `root:sklad`, 640 | пароль БД и `SECRET_KEY`: читает только служба |
+| `/etc/systemd/system/sklad.service` | `root:root`, 644 | описание службы |
+| `/usr/local/sbin/sklad-cli`, `sklad-update` | `root:root`, 755 | служебные команды, запускаются через `sudo` |
+
+Журнал приложения пишется в стандартный вывод, его собирает systemd (journald) — отдельный файл не нужен.
+
+### Служба sklad.service
+
+| Строка | Зачем |
+|---|---|
+| `After=network-online.target`, `Wants=...` | запускать после того, как поднята сеть |
+| `StartLimitIntervalSec=0` | не прекращать попытки перезапуска, например пока БД ещё не запущена |
+| `Type=exec` | служба считается запущенной, когда процесс успешно стартовал |
+| `User=sklad`, `Group=sklad` | приложение работает не от root |
+| `WorkingDirectory=/opt/sklad` | каталог кода |
+| `EnvironmentFile=/etc/sklad/sklad.env` | настройки берутся из файла на сервере, а не из кода |
+| `ExecStart=.../uvicorn app.main:app --host 0.0.0.0 --port 8000` | команда запуска |
+| `Restart=on-failure`, `RestartSec=5` | перезапуск через 5 секунд после аварийного завершения (но не после `systemctl stop`) |
+| `TimeoutStopSec=20` | сколько ждать корректной остановки, прежде чем завершить принудительно |
+| `NoNewPrivileges=yes` | процесс и его потомки не могут получить больше прав (например, через `sudo`) |
+| `ProtectSystem=strict` | вся файловая система для службы только на чтение |
+| `ProtectHome=yes` | домашние каталоги пользователей службе не видны |
+| `PrivateTmp=yes` | свой отдельный `/tmp` |
+| `PrivateDevices=yes` | нет доступа к устройствам, только `/dev/null`, `/dev/urandom` и подобные |
+| `CapabilityBoundingSet=` | у процесса нет никаких особых привилегий ядра |
+| `WantedBy=multi-user.target` | `systemctl enable` включает автозапуск при обычной загрузке |
+
+Насколько служба изолирована, показывает `systemd-analyze security sklad`.
+
+## 6. Управление службой
+
+```bash
+sudo systemctl status sklad          # состояние, PID, память, последние строки журнала
+sudo systemctl stop sklad            # остановить
+sudo systemctl start sklad           # запустить
+sudo systemctl restart sklad         # перезапустить, например после изменения настроек
+systemctl is-enabled sklad           # enabled — запускается при загрузке
+systemctl cat sklad                  # итоговое описание службы со всеми изменениями
+
+journalctl -u sklad -f               # журнал в реальном времени (выход Ctrl+C)
+journalctl -u sklad -n 50            # последние 50 строк
+journalctl -u sklad -b               # с последней загрузки
+journalctl -u sklad -p warning       # только предупреждения и ошибки
+```
+
+**Изменить настройку**: `sudo nano /etc/sklad/sklad.env`, затем `sudo systemctl restart sklad`.
+
+**Обновить или откатить версию** (тег или ветка):
+
+```bash
+sudo sklad-update v0.2.0
+```
+
+Скрипт забирает изменения из репозитория, переключает код на указанную версию, обновляет зависимости и службу, перезапускает её и проверяет `/health`.
+
+## 7. Проверки
+
+**Перезагрузка обеих машин.** `sudo reboot` на обеих, затем:
+
+```bash
+systemctl status sklad
+curl -s localhost:8000/health                  # {"status":"ok",...}
+journalctl -u sklad -b
+```
+
+Порядок загрузки не важен: если приложение стартовало раньше PostgreSQL, оно завершается с ошибкой подключения, а systemd перезапускает его каждые 5 секунд, пока БД не станет доступна.
+
+**Остановка БД и состояние приложения.** На `sklad-db`: `sudo systemctl stop postgresql`. На `sklad-app`:
+
+```bash
+systemctl is-active sklad                      # active — приложение работает
+curl -s localhost:8000/health                  # {"status":"error","db":"unavailable",...}, код 503
+journalctl -u sklad -n 20                      # ERROR ... БД недоступна
+nc -zv sklad-db 5432                           # Connection refused — порт не слушается
+```
+
+После `sudo systemctl start postgresql` на `sklad-db` `/health` снова `ok`, приложение не перезапускали.
+
+**Процесс, порт и журнал.**
+
+```bash
+systemctl show -p MainPID --value sklad        # PID главного процесса
+ps -o user,pid,etime,cmd -p "$(systemctl show -p MainPID --value sklad)"
+pgrep -a -u sklad                              # все процессы пользователя sklad
+sudo ss -tlnp | grep 8000                      # кто слушает порт 8000
+journalctl -u sklad --since "10 min ago"
+```
+
+На `sklad-db`: `sudo ss -tlnp | grep 5432`, `journalctl -u postgresql@17-main`, файл `/var/log/postgresql/postgresql-17-main.log`.
+
+**Перезапуск после сбоя.**
+
+```bash
+sudo systemctl kill -s KILL sklad              # «убить» процесс, как при аварии
+sleep 6; systemctl status sklad                # снова active, PID новый
+journalctl -u sklad -n 10                      # killed, status=9/KILL ... Scheduled restart job
+```
+
+**Изменение параметра службы и восстановление.** Изменения вносятся отдельным файлом поверх основного, поэтому их легко отменить:
+
+```bash
+sudo systemctl edit sklad
+```
+
+В открывшемся редакторе между комментариями:
+
+```
+[Service]
+ExecStart=
+ExecStart=/opt/sklad/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+```
+
+Пустая строка `ExecStart=` сбрасывает старую команду. Сохранить, затем:
+
+```bash
+sudo systemctl restart sklad
+sudo ss -tlnp | grep 8001                      # теперь 8001; с ноутбука не открыть — firewall пропускает только 8000
+systemctl cat sklad                            # видно файл override.conf
+sudo systemctl revert sklad                    # удалить все изменения поверх основного файла
+sudo systemctl restart sklad                   # снова 8000
+```
+
+**БД недоступна с постороннего узла** — раздел 3.
+
+**Все требования сразу** — `check.sh`, раздел 4.
