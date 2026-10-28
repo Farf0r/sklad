@@ -1,10 +1,10 @@
 #!/bin/bash
 # Обновление (или откат) приложения на сервере до тега или ветки.
 # app-setup.sh устанавливает этот скрипт как /usr/local/sbin/sklad-update:
-#   sudo sklad-update v0.2.0
+#   sudo sklad-update v0.3.0
 set -euo pipefail
 
-ref=${1:?Укажите тег или ветку, например: v0.2.0}
+ref=${1:?Укажите тег или ветку, например: v0.3.0}
 APP_DIR=/opt/sklad
 
 if [[ $EUID -ne 0 ]]; then
