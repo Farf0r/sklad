@@ -1,30 +1,81 @@
-import os
-import tempfile
+"""Общая подготовка тестов.
 
-# Тесты не трогают рабочую БД из .env: по умолчанию используется временная SQLite-база,
-# а через TEST_DATABASE_URL можно указать отдельную тестовую базу PostgreSQL
-TEST_DB = os.path.join(tempfile.gettempdir(), "sklad_test.db")
-os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", f"sqlite:///{TEST_DB}")
+Тесты работают только с отдельной тестовой базой PostgreSQL из TEST_DATABASE_URL
+(переменная окружения или файл .env.test). Перед запуском схема создаётся миграциями,
+перед каждым тестом все таблицы очищаются, поэтому тесты не зависят друг от друга.
+"""
+
+import os
+from pathlib import Path
+
+import pytest
+from sqlalchemy.engine import make_url
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def read_test_database_url() -> str | None:
+    if os.environ.get("TEST_DATABASE_URL"):
+        return os.environ["TEST_DATABASE_URL"]
+    env_file = ROOT / ".env.test"
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            key, _, value = line.strip().partition("=")
+            if key == "TEST_DATABASE_URL" and value:
+                return value
+    return None
+
+
+TEST_DATABASE_URL = read_test_database_url()
+if not TEST_DATABASE_URL:
+    pytest.exit(
+        "Не задана тестовая база. Создайте базу sklad_test и файл .env.test по образцу "
+        ".env.test.example (см. README, раздел «Тесты»)",
+        returncode=2,
+    )
+url = make_url(TEST_DATABASE_URL)
+if not url.drivername.startswith("postgresql") or not (url.database or "").endswith("_test"):
+    pytest.exit(
+        "TEST_DATABASE_URL должна указывать на базу PostgreSQL с именем *_test: "
+        "тесты удаляют в ней все данные",
+        returncode=2,
+    )
+
+# настройки приложения подменяются до его импорта: рабочая база из .env не используется
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["SECRET_KEY"] = "test-secret-key-only-for-pytest"
 os.environ["APP_ENV"] = "test"
 os.environ["LOG_FILE"] = ""
 os.environ["BCRYPT_ROUNDS"] = "4"
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402 — после подмены настроек
+from sqlalchemy import MetaData, text  # noqa: E402 — после подмены настроек
 
-from app.database import Base, SessionLocal, engine  # noqa: E402
-from app.main import app  # noqa: E402
-from app.services.users import create_user  # noqa: E402
+from app.database import Base, SessionLocal, engine  # noqa: E402 — после подмены настроек
+from app.main import app  # noqa: E402 — после подмены настроек
+from app.migrate import migrate  # noqa: E402 — после подмены настроек
+from app.services.users import create_user  # noqa: E402 — после подмены настроек
 
 PASSWORD = "password123"
+TABLES = ", ".join(table.name for table in Base.metadata.sorted_tables)
+
+
+def drop_everything():
+    metadata = MetaData()
+    metadata.reflect(bind=engine)
+    metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def database_schema():
+    drop_everything()
+    migrate()
 
 
 @pytest.fixture(autouse=True)
-def clean_db():
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    yield
+def clean_tables(database_schema):
+    with engine.begin() as conn:
+        conn.execute(text(f"TRUNCATE {TABLES} RESTART IDENTITY CASCADE"))
 
 
 @pytest.fixture

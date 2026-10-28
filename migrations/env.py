@@ -15,13 +15,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations(connection):
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        compare_type=True,
-        # SQLite не умеет менять столбцы и ограничения через ALTER, Alembic пересоздаёт таблицу
-        render_as_batch=connection.dialect.name == "sqlite",
-    )
+    context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
     with context.begin_transaction():
         context.run_migrations()
 

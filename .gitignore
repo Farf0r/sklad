@@ -1,5 +1,6 @@
 # секреты и локальные настройки
 .env
+.env.test
 *.local
 
 # виртуальное окружение и кэш Python
@@ -8,7 +9,8 @@ venv/
 __pycache__/
 *.pyc
 
-# результаты проверок
+# результаты проверок и отчёты
+reports/
 .pytest_cache/
 .ruff_cache/
 .coverage
