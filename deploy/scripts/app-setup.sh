@@ -22,7 +22,8 @@ fi
 
 echo "== Пакеты"
 export DEBIAN_FRONTEND=noninteractive
-apt-get install -y -q python3 python3-venv
+# postgresql-client — утилиты pg_dump и pg_restore для резервного копирования
+apt-get install -y -q python3 python3-venv postgresql-client
 
 echo "== Пользователь sklad: без пароля и без входа в систему, только для запуска приложения"
 id sklad &>/dev/null || useradd --system --user-group --no-create-home \
@@ -32,7 +33,7 @@ echo "== Код и зависимости (владелец root: приложе
 python3 -m venv "$APP_DIR/.venv"
 "$APP_DIR/.venv/bin/pip" install -q --upgrade pip
 "$APP_DIR/.venv/bin/pip" install -q -r "$APP_DIR/requirements.txt"
-"$APP_DIR/.venv/bin/python" -m compileall -q "$APP_DIR/app"
+"$APP_DIR/.venv/bin/python" -m compileall -q "$APP_DIR/app" "$APP_DIR/migrations"
 chown -R root:root "$APP_DIR"
 chmod -R u=rwX,go=rX "$APP_DIR"
 
@@ -47,13 +48,22 @@ if [[ ! -f $ENV_FILE ]]; then
         -e "s|^SECRET_KEY=.*|SECRET_KEY=$secret|" \
         "$APP_DIR/deploy/sklad.env.example" > "$ENV_FILE"
 fi
+# в файлах, созданных версией 0.2.0, этой строки ещё нет
+grep -q '^BACKUP_DIR=' "$ENV_FILE" || echo "BACKUP_DIR=/var/backups/sklad" >> "$ENV_FILE"
 chown root:sklad "$ENV_FILE"
 chmod 640 "$ENV_FILE"
+
+echo "== Каталог резервных копий /var/backups/sklad"
+install -d -m 750 -o sklad -g sklad /var/backups/sklad
 
 echo "== Служба sklad"
 install -m 644 "$APP_DIR/deploy/sklad.service" /etc/systemd/system/sklad.service
 install -m 755 "$APP_DIR/deploy/scripts/sklad-cli.sh" /usr/local/sbin/sklad-cli
 install -m 755 "$APP_DIR/deploy/scripts/app-update.sh" /usr/local/sbin/sklad-update
+
+echo "== Миграции базы данных"
+/usr/local/sbin/sklad-cli migrate
+
 systemctl daemon-reload
 systemctl enable sklad
 systemctl restart sklad

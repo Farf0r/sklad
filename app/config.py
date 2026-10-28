@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     log_file: str | None = None
     session_max_age: int = 8 * 60 * 60
     bcrypt_rounds: int = Field(default=12, ge=4, le=16)
+    backup_dir: str = "backups"
 
 
 settings = Settings()

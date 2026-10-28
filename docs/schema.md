@@ -1,6 +1,6 @@
 # Схема данных
 
-СУБД: PostgreSQL 16. Таблицы создаются при запуске приложения по моделям из `app/models/`.
+СУБД: PostgreSQL 16+. Таблицы описаны моделями в `app/models/`, а создаются и изменяются миграциями Alembic из `migrations/versions/` (`make migrate`).
 
 ```mermaid
 erDiagram
@@ -27,6 +27,7 @@ erDiagram
         varchar name UK
         int unit_id FK
         numeric stock "остаток, >= 0"
+        numeric min_stock "минимальный остаток, >= 0"
         varchar description
         timestamptz created_at
     }
@@ -86,6 +87,7 @@ erDiagram
 | name | varchar(200) | уникальное |
 | unit_id | integer | FK → units.id |
 | stock | numeric(12,3) | остаток на складе, ≥ 0 (CHECK), по умолчанию 0 |
+| min_stock | numeric(12,3) | минимальный остаток, ≥ 0 (CHECK), по умолчанию 0 — не отслеживать; если `stock < min_stock`, материал попадает в список «К заказу» |
 | description | varchar(500) | необязательное |
 | created_at | timestamptz | по умолчанию now() |
 
@@ -105,7 +107,7 @@ erDiagram
 |---|---|---|
 | id | integer | PK, номер поступления |
 | supplier_id | integer | FK → suppliers.id |
-| receipt_date | date | дата поступления |
+| receipt_date | date | дата поступления, индекс `ix_receipts_receipt_date` (список сортируется по дате) |
 | status | varchar(10) | `draft` (черновик) или `posted` (проведено), CHECK |
 | comment | varchar(500) | необязательное |
 | created_by_id | integer | FK → users.id |
@@ -118,11 +120,21 @@ erDiagram
 |---|---|---|
 | id | integer | PK |
 | receipt_id | integer | FK → receipts.id, ON DELETE CASCADE |
-| material_id | integer | FK → materials.id |
+| material_id | integer | FK → materials.id, индекс `ix_receipt_items_material_id` (проверка при удалении материала) |
 | quantity | numeric(12,3) | > 0 (CHECK) |
 | price | numeric(12,2) | цена за единицу, ≥ 0 (CHECK) |
 
 Пара (`receipt_id`, `material_id`) уникальна: материал встречается в поступлении один раз.
+
+## Миграции
+
+| Ревизия | Файл | Что меняет |
+|---|---|---|
+| 0001 | `0001_initial.py` | начальная схема: все таблицы версий 0.1–0.2 |
+| 0002 | `0002_material_min_stock.py` | поле `materials.min_stock` и ограничение `ck_materials_min_stock` |
+| 0003 | `0003_receipt_indexes.py` | индексы `ix_receipts_receipt_date` и `ix_receipt_items_material_id` |
+
+Каждая миграция ссылается на предыдущую (`down_revision`) и умеет откатываться (`downgrade`). Номер текущей ревизии хранится в таблице `alembic_version`. Базы, созданные версиями 0.1–0.2 без миграций, при первом `make migrate` отмечаются ревизией 0001 и обновляются дальше (`app/migrate.py`).
 
 ## Как связаны остатки и поступления
 

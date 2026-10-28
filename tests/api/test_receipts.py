@@ -115,6 +115,8 @@ def test_same_material_twice(user_client, refs):
         "/api/receipts", json={"supplier_id": refs["supplier"], "items": items}
     )
     assert response.status_code == 409
+    # сообщение от проверки в коде, а не общий отказ базы
+    assert response.json()["detail"] == "Этот материал уже есть в поступлении"
 
 
 @pytest.mark.parametrize(

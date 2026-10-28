@@ -10,11 +10,12 @@
 | Денис Третьяков ([@Farf0r](https://github.com/Farf0r)) | каркас, авторизация, единицы измерения, материалы |
 | Иван Петров ([@ivan-11-p](https://github.com/ivan-11-p)) | поставщики, поступления |
 
-## Возможности (v0.2.0)
+## Возможности (v0.3.0)
 
 - вход по логину и паролю, роли «администратор» и «кладовщик»;
 - справочники: единицы измерения, материалы, поставщики;
 - поступления на склад: черновик → строки (материал, количество, цена) → проведение;
+- минимальный остаток материала и список «К заказу»: материалы, которых осталось меньше минимума;
 - HTTP API в формате JSON и веб-интерфейс;
 - служебный адрес `/health`, журнал запросов и ошибок.
 - развёртывание на двух серверах Debian 13: приложение как systemd-служба, PostgreSQL на отдельной машине и доступен только серверу приложения.
@@ -28,6 +29,7 @@
 5. Нельзя удалить единицу измерения, материал или поставщика, если на них ссылаются другие записи; нельзя удалить материал с ненулевым остатком.
 6. Удалять записи может только администратор.
 7. ИНН поставщика: 10 или 12 цифр; названия и ИНН уникальны.
+8. Материал нужно заказать, если его остаток **меньше** минимального. Минимальный остаток не меньше 0; 0 — не отслеживать.
 
 ## Стек
 
@@ -37,24 +39,26 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 
 Нужны: Python 3.12+, PostgreSQL 16, Git и GNU make (на Windows: `winget install ezwinports.make`).
 
-1. Создайте базу и пользователя (Windows: «SQL Shell (psql)» из меню Пуск, вход под `postgres`):
+1. Создайте пользователя, рабочую и тестовую базы (Windows: «SQL Shell (psql)» из меню Пуск, вход под `postgres`):
 
    ```sql
    CREATE USER sklad WITH PASSWORD 'придумайте-пароль';
    CREATE DATABASE sklad OWNER sklad;
+   CREATE DATABASE sklad_test OWNER sklad;
    ```
 
-2. Установите зависимости:
+2. Первоначальная настройка — одна команда:
 
    ```bash
    make setup
    ```
 
-3. Создайте файл настроек и впишите в него пароль от БД и свой `SECRET_KEY`:
+   Она создаёт виртуальное окружение `.venv`, ставит зависимости с зафиксированными версиями (`requirements*.txt`) и, если их ещё нет, файлы настроек `.env` и `.env.test` из образцов: спрашивает пароль пользователя `sklad` и генерирует `SECRET_KEY`.
+
+3. Создайте таблицы в базе (применить миграции):
 
    ```bash
-   copy .env.example .env      # Windows
-   cp .env.example .env        # Linux / macOS
+   make migrate
    ```
 
 4. Создайте администратора (пароль спросит в консоли, не короче 8 символов):
@@ -71,18 +75,26 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 
    Веб-интерфейс: http://127.0.0.1:8000, Swagger: http://127.0.0.1:8000/docs, проверка работоспособности: http://127.0.0.1:8000/health.
 
-Таблицы в БД создаются автоматически при запуске. Миграции (Alembic) появятся в следующей версии.
+6. Проверьте, что всё работает: `make verify`.
+
+Схема БД создаётся и изменяется только миграциями Alembic (`migrations/versions/`). После `git pull` с новыми миграциями выполните `make migrate`.
 
 ## Команды
 
 | Команда | Что делает |
 |---|---|
-| `make setup` | создаёт виртуальное окружение `.venv` и ставит зависимости |
+| `make setup` | первоначальная настройка: окружение `.venv`, зависимости, файлы `.env` и `.env.test` |
 | `make run` | запускает приложение локально с автоперезагрузкой |
-| `make test` | автотесты (pytest) |
+| `make migrate` | применяет миграции: приводит схему БД к последней версии |
+| `make backup` | резервная копия базы из `.env` в каталог `backups/` |
+| `make restore` | восстановление базы из последней копии (`make restore FILE=backups/имя.dump` — из указанной) |
+| `make test` | автотесты на тестовой базе PostgreSQL с отчётом о покрытии (`reports/`) |
 | `make quality` | проверка стиля и статический анализ (ruff) |
+| `make sast` | поиск уязвимостей в коде (bandit) |
+| `make rules` | проверка правил проекта: тесты не пропущены, пороги не снижены |
 | `make format` | автоматически исправляет форматирование |
-| `make verify` | **все обязательные проверки**: `quality` + `test` |
+| `make verify` | **все обязательные проверки**: `rules` + `quality` + `sast` + `test` |
+| `make mutation` | мутационное тестирование: тесты должны замечать ошибки в правилах |
 | `make createadmin` | создаёт пользователя-администратора |
 
 Кладовщика можно создать так: `python -m app.cli create-user --username ivanov --role storekeeper`.
@@ -96,8 +108,13 @@ python -m venv .venv
 pip install -r requirements-dev.txt
 
 uvicorn app.main:app --reload            # make run
+python -m app.cli migrate                # make migrate
+python -m app.cli backup                 # make backup
+python -m app.cli restore                # make restore
 pytest                                   # make test
 ruff check . ; ruff format --check .     # make quality
+bandit -c pyproject.toml -r app migrations tools   # make sast
+python tools/check_rules.py              # make rules
 python -m app.cli create-user --username admin --role admin
 ```
 
@@ -115,6 +132,7 @@ python -m app.cli create-user --username admin --role admin
 | `LOG_FILE` | нет | путь к файлу журнала; если не задан, журнал пишется только в консоль |
 | `SESSION_MAX_AGE` | нет | время жизни сессии в секундах (по умолчанию 8 часов) |
 | `BCRYPT_ROUNDS` | нет | сложность хеширования паролей (по умолчанию 12) |
+| `BACKUP_DIR` | нет | каталог резервных копий (по умолчанию `backups`) |
 
 Настройки читаются из переменных окружения или из файла `.env`. Файл `.env` содержит пароли и **не попадает в Git** (см. `.gitignore`); в репозитории лежит только образец `.env.example`.
 
@@ -130,8 +148,16 @@ python -m app.cli create-user --username admin --role admin
 
 ## Тесты
 
-`make test` запускает тесты на временной SQLite-базе, рабочая БД из `.env` не используется.
-Чтобы прогнать их на PostgreSQL, создайте отдельную базу и укажите её в `TEST_DATABASE_URL`.
+Тесты работают на отдельной базе PostgreSQL `sklad_test`, рабочая база из `.env` не используется. Один раз:
+
+1. Создайте базу («SQL Shell (psql)», вход под `postgres`): `CREATE DATABASE sklad_test OWNER sklad;`
+2. Создайте файл `.env.test` по образцу `.env.test.example` и впишите пароль пользователя `sklad` (`make setup` делает это сам, если файла ещё нет).
+
+Структура тестов, состав `make verify`, отчёты, покрытие требований ТЗ и мутационное тестирование — в [docs/testing.md](docs/testing.md).
+
+## Резервное копирование
+
+`make backup` сохраняет всю базу (схему и данные) одним файлом в `backups/`, `make restore` возвращает базу к состоянию из копии; перед восстановлением текущее состояние тоже сохраняется. Нужны утилиты PostgreSQL `pg_dump` и `pg_restore`: под Windows они ставятся вместе с PostgreSQL и находятся автоматически. Подробно — в [docs/backup.md](docs/backup.md).
 
 ## Развёртывание на сервере
 
@@ -160,6 +186,8 @@ app/
   main.py            сборка приложения: middleware, обработчики ошибок, роутеры
   config.py          настройки из переменных окружения
   database.py        подключение к БД
+  migrate.py         применение миграций
+  backup.py          резервная копия и восстановление (pg_dump / pg_restore)
   logging_config.py  формат журнала
   middleware.py      журнал запросов и X-Request-ID
   errors.py          ошибки приложения и их перевод в HTTP-ответы
@@ -169,8 +197,10 @@ app/
   services/          бизнес-логика и правила предметной области
   routers/           адреса API (/api/...) и веб-страниц
   templates/         HTML-шаблоны
-tests/               автотесты
-docs/                описание API, схема данных, развёртывание
+migrations/          миграции схемы БД (Alembic), alembic.ini — их настройки
+tests/               автотесты: unit/, api/, integration/
+tools/               настройка .env, проверка правил проекта, мутационное тестирование
+docs/                описание API, схема данных, тесты, резервные копии, развёртывание
 deploy/
   sklad.service      systemd-служба приложения
   sklad.env.example  образец настроек сервера
@@ -181,5 +211,7 @@ deploy/
 
 - [Описание API](docs/api.md), интерактивно: `/docs`
 - [Схема данных](docs/schema.md)
+- [Тестирование и проверки](docs/testing.md)
+- [Резервное копирование и восстановление](docs/backup.md)
 - [Развёртывание на Linux-серверах](docs/deploy.md)
 - [Правила внесения изменений](CONTRIBUTING.md)

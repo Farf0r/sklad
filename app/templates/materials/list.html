@@ -5,15 +5,23 @@
   <h1>Материалы</h1>
   <a class="btn" href="/materials/new">Добавить</a>
 </div>
+<div class="tabs">
+  <a href="/materials" {% if not needs_order %}class="active"{% endif %}>Все</a>
+  <a href="/materials?needs_order=1" {% if needs_order %}class="active"{% endif %}>К заказу ({{ to_order }})</a>
+</div>
 <table>
   <thead>
-    <tr><th>Наименование</th><th class="num">Остаток</th><th>Ед.</th><th>Описание</th><th></th></tr>
+    <tr><th>Наименование</th><th class="num">Остаток</th><th class="num">Мин. остаток</th><th>Ед.</th><th>Описание</th><th></th></tr>
   </thead>
   <tbody>
   {% for material in materials %}
-    <tr>
-      <td>{{ material.name }}</td>
+    <tr {% if material.needs_order %}class="low-stock"{% endif %}>
+      <td>
+        {{ material.name }}
+        {% if material.needs_order %}<span class="badge badge-order">заказать {{ material.shortage | num }}</span>{% endif %}
+      </td>
       <td class="num">{{ material.stock | num }}</td>
+      <td class="num">{{ material.min_stock | num if material.min_stock else "—" }}</td>
       <td>{{ material.unit.short_name }}</td>
       <td class="muted">{{ material.description or "" }}</td>
       <td class="actions">
@@ -26,7 +34,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="5" class="empty">Материалов пока нет</td></tr>
+    <tr><td colspan="6" class="empty">{{ "Все материалы в достаточном количестве" if needs_order else "Материалов пока нет" }}</td></tr>
   {% endfor %}
   </tbody>
 </table>

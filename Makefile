@@ -6,16 +6,30 @@ else
     VENV_PY = .venv/bin/python
 endif
 
-.PHONY: setup run test quality format verify createadmin
+.PHONY: setup run migrate backup restore test quality sast rules format verify mutation createadmin
 
+# первоначальная настройка: окружение, зависимости, файлы .env и .env.test
 setup:
 	$(PYTHON) -m venv .venv
 	$(VENV_PY) -m pip install --upgrade pip
 	$(VENV_PY) -m pip install -r requirements-dev.txt
+	$(VENV_PY) tools/init_env.py
 
 run:
 	$(VENV_PY) -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
+migrate:
+	$(VENV_PY) -m app.cli migrate
+
+# резервная копия базы из .env в каталог backups/
+backup:
+	$(VENV_PY) -m app.cli backup
+
+# make restore — из последней копии, make restore FILE=backups/имя.dump — из указанной
+restore:
+	$(VENV_PY) -m app.cli restore $(FILE)
+
+# тесты на тестовой базе из .env.test, отчёты в reports/
 test:
 	$(VENV_PY) -m pytest
 
@@ -23,11 +37,23 @@ quality:
 	$(VENV_PY) -m ruff check .
 	$(VENV_PY) -m ruff format --check .
 
+# поиск уязвимостей в коде (SAST)
+sast:
+	$(VENV_PY) -m bandit -c pyproject.toml -r app migrations tools
+
+# запрет пропуска тестов, снижения порогов и исключений без обоснования
+rules:
+	$(VENV_PY) tools/check_rules.py
+
 format:
 	$(VENV_PY) -m ruff format .
 	$(VENV_PY) -m ruff check --fix .
 
-verify: quality test
+verify: rules quality sast test
+
+# мутационное тестирование: тесты должны замечать ошибки в правилах приложения
+mutation:
+	$(VENV_PY) tools/mutate.py
 
 createadmin:
 	$(VENV_PY) -m app.cli create-user --username admin --role admin
