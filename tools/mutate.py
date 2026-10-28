@@ -108,6 +108,41 @@ MUTANTS = [
         "кладовщик может удалять записи",
         [API],
     ),
+    (
+        "app/models/material.py",
+        "return self.stock < self.min_stock",
+        "return self.stock <= self.min_stock",
+        "материал с остатком, равным минимальному, считается «к заказу»",
+        [UNIT],
+    ),
+    (
+        "app/models/material.py",
+        'return max(self.min_stock - self.stock, Decimal("0"))',
+        "return self.min_stock - self.stock",
+        "нехватка бывает отрицательной",
+        [UNIT],
+    ),
+    (
+        "app/services/materials.py",
+        "query = query.where(Material.stock < Material.min_stock)",
+        "query = query.where(Material.stock <= Material.min_stock)",
+        "в списке «К заказу» материалы с достаточным остатком",
+        [f"{API}/test_min_stock.py"],
+    ),
+    (
+        "app/services/materials.py",
+        "material.min_stock = data.min_stock",
+        "material.min_stock = material.min_stock",
+        "минимальный остаток не меняется при изменении материала",
+        [f"{API}/test_min_stock.py"],
+    ),
+    (
+        "app/schemas/material.py",
+        'min_stock: Decimal = Field(default=Decimal("0"), ge=0,',
+        'min_stock: Decimal = Field(default=Decimal("0"), ge=-1000,',
+        "разрешён отрицательный минимальный остаток",
+        [UNIT],
+    ),
 ]
 
 

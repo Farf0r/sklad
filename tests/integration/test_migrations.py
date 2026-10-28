@@ -18,6 +18,12 @@ def head_revision():
     return ScriptDirectory.from_config(alembic_config()).get_current_head()
 
 
+def revisions():
+    """Ревизии от первой к последней."""
+    script = ScriptDirectory.from_config(alembic_config())
+    return [rev.revision for rev in reversed(list(script.walk_revisions()))]
+
+
 def schema_diff():
     with engine.connect() as conn:
         context = MigrationContext.configure(conn, opts={"compare_type": True})
@@ -33,6 +39,24 @@ def test_clean_database_is_built_by_migrations():
 
 def test_models_match_migrations():
     # если модель изменили, а миграцию не написали, этот тест упадёт
+    assert schema_diff() == []
+
+
+def test_at_least_three_migrations():
+    assert revisions()[:3] == ["0001", "0002", "0003"]
+
+
+def test_each_migration_can_be_rolled_back():
+    # откат и повтор по одному шагу: у каждой миграции рабочий downgrade
+    config = alembic_config()
+    for revision in reversed(revisions()):
+        assert current_revision() == revision
+        command.downgrade(config, "-1")
+        command.upgrade(config, "+1")
+        assert current_revision() == revision
+        command.downgrade(config, "-1")
+    assert current_revision() is None
+    migrate()
     assert schema_diff() == []
 
 
@@ -57,9 +81,11 @@ def test_upgrade_keeps_existing_data():
     migrate()
     assert current_revision() == head_revision()
     with engine.connect() as conn:
-        row = conn.execute(text("SELECT name, stock FROM materials")).one()
+        row = conn.execute(text("SELECT name, stock, min_stock FROM materials")).one()
     assert row.name == "Цемент М500"
     assert row.stock == 40
+    # у старых материалов минимальный остаток не задан
+    assert row.min_stock == 0
 
 
 def test_database_without_migration_history_is_stamped():
