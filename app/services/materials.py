@@ -12,8 +12,12 @@ from app.services.units import get_unit
 logger = logging.getLogger(__name__)
 
 
-def list_materials(db: Session) -> list[Material]:
-    return list(db.scalars(select(Material).order_by(Material.name)))
+def list_materials(db: Session, needs_order: bool = False) -> list[Material]:
+    query = select(Material).order_by(Material.name)
+    if needs_order:
+        # то же условие, что в Material.needs_order, но в запросе к базе
+        query = query.where(Material.stock < Material.min_stock)
+    return list(db.scalars(query))
 
 
 def get_material(db: Session, material_id: int) -> Material:
@@ -34,7 +38,12 @@ def check_unique(db: Session, name: str, exclude_id: int | None = None):
 def create_material(db: Session, data: MaterialIn) -> Material:
     get_unit(db, data.unit_id)
     check_unique(db, data.name)
-    material = Material(name=data.name, unit_id=data.unit_id, description=data.description or None)
+    material = Material(
+        name=data.name,
+        unit_id=data.unit_id,
+        min_stock=data.min_stock,
+        description=data.description or None,
+    )
     db.add(material)
     db.commit()
     db.refresh(material)
@@ -49,6 +58,7 @@ def update_material(db: Session, material_id: int, data: MaterialIn) -> Material
     check_unique(db, data.name, exclude_id=material_id)
     material.name = data.name
     material.unit_id = data.unit_id
+    material.min_stock = data.min_stock
     material.description = data.description or None
     db.commit()
     db.refresh(material)
