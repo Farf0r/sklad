@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 API = "tests/api"
 UNIT = "tests/unit"
+BACKUP = "tests/integration/test_backup.py"
 
 # файл, исходный фрагмент, мутация, что ломается, какие тесты запускать
 MUTANTS = [
@@ -142,6 +143,20 @@ MUTANTS = [
         'min_stock: Decimal = Field(default=Decimal("0"), ge=-1000,',
         "разрешён отрицательный минимальный остаток",
         [UNIT],
+    ),
+    (
+        "app/cli.py",
+        'input("Продолжить? Введите yes: ").strip().lower() != "yes"',
+        'input("Продолжить? Введите yes: ").strip().lower() == "no"',
+        "восстановление идёт без подтверждения",
+        [BACKUP],
+    ),
+    (
+        "app/backup.py",
+        "if BEFORE_RESTORE not in path.name",
+        "if path.name",
+        "make restore берёт копию, сделанную перед восстановлением",
+        [BACKUP],
     ),
 ]
 
