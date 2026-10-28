@@ -61,14 +61,15 @@ systemctl restart sklad
 echo "== Firewall: веб-интерфейс доступен из внутренней сети"
 ufw allow from "$CLIENT_NET" to any port 8000 proto tcp comment "sklad web"
 
-echo "== Проверка"
+echo "== Проверка: ждём ответа приложения"
 for _ in $(seq 1 20); do
-    if curl -fsS http://127.0.0.1:8000/health; then
-        echo
+    if health=$(curl -fs http://127.0.0.1:8000/health); then
+        echo "$health"
         echo "Готово. Создайте администратора: sudo sklad-cli create-user --username admin --role admin"
         exit 0
     fi
     sleep 1
 done
-echo "Приложение не отвечает. Смотрите журнал: journalctl -u sklad -n 50" >&2
+echo "Приложение не отвечает 20 секунд. Последние строки журнала службы:" >&2
+journalctl -u sklad -n 15 --no-pager >&2
 exit 1
