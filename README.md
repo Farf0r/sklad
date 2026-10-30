@@ -201,6 +201,9 @@ migrations/          миграции схемы БД (Alembic), alembic.ini —
 tests/               автотесты: unit/, api/, integration/
 tools/               настройка .env, проверка правил проекта, мутационное тестирование
 docs/                описание API, схема данных, тесты, резервные копии, развёртывание
+Dockerfile           образ приложения
+.dockerignore        что попадает в контекст сборки образа (только код)
+requirements-lock.txt  точные версии всех пакетов для образа
 deploy/
   sklad.service      systemd-служба приложения
   sklad.env.example  образец настроек сервера
@@ -214,4 +217,5 @@ deploy/
 - [Тестирование и проверки](docs/testing.md)
 - [Резервное копирование и восстановление](docs/backup.md)
 - [Развёртывание на Linux-серверах](docs/deploy.md)
+- [Контейнерное окружение](docs/docker.md)
 - [Правила внесения изменений](CONTRIBUTING.md)

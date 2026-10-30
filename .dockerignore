@@ -1,0 +1,10 @@
+# В контекст сборки попадает только то, что нужно приложению в образе.
+# Всё остальное (.env с паролями, .git, тесты, резервные копии, .venv) исключено.
+*
+!app/
+!migrations/
+!alembic.ini
+!requirements.txt
+!requirements-lock.txt
+**/__pycache__
+**/*.pyc
