@@ -18,7 +18,8 @@
 - минимальный остаток материала и список «К заказу»: материалы, которых осталось меньше минимума;
 - HTTP API в формате JSON и веб-интерфейс;
 - служебный адрес `/health`, журнал запросов и ошибок.
-- развёртывание на двух серверах Debian 13: приложение как systemd-служба, PostgreSQL на отдельной машине и доступен только серверу приложения.
+- развёртывание на двух серверах Debian 13: приложение как systemd-служба, PostgreSQL на отдельной машине и доступен только серверу приложения;
+- запуск в контейнерах Docker: приложение и PostgreSQL одной командой `make up`.
 
 ## Правила предметной области
 
@@ -33,7 +34,7 @@
 
 ## Стек
 
-Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На сервере: Debian 13, systemd, ufw.
+Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На сервере: Debian 13, systemd, ufw. Контейнеры: Docker, Docker Compose.
 
 ## Быстрый старт
 
@@ -96,6 +97,8 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 | `make verify` | **все обязательные проверки**: `rules` + `quality` + `sast` + `test` |
 | `make mutation` | мутационное тестирование: тесты должны замечать ошибки в правилах |
 | `make createadmin` | создаёт пользователя-администратора |
+| `make up` / `make down` | запуск и остановка в контейнерах (раздел «Запуск в контейнерах») |
+| `make container-migrate`, `container-backup`, `container-restore`, `container-createadmin` | те же действия в контейнерном окружении |
 
 Кладовщика можно создать так: `python -m app.cli create-user --username ivanov --role storekeeper`.
 
@@ -159,6 +162,19 @@ python -m app.cli create-user --username admin --role admin
 
 `make backup` сохраняет всю базу (схему и данные) одним файлом в `backups/`, `make restore` возвращает базу к состоянию из копии; перед восстановлением текущее состояние тоже сохраняется. Нужны утилиты PostgreSQL `pg_dump` и `pg_restore`: под Windows они ставятся вместе с PostgreSQL и находятся автоматически. Подробно — в [docs/backup.md](docs/backup.md).
 
+## Запуск в контейнерах
+
+Нужен Docker (на Windows — [Docker Desktop](https://www.docker.com/products/docker-desktop/) с WSL 2) и выполненный `make setup`: он дописывает в `.env` пароли для контейнеров.
+
+```bash
+make up                      # сборка образа, запуск db → migrate → app
+make container-createadmin   # администратор
+```
+
+Приложение: http://127.0.0.1:8080. База данных в контейнере наружу не открыта, данные хранятся в томе `sklad_db-data` и переживают пересоздание контейнеров и обновление образа.
+
+Устройство образа и окружения, ограничения ресурсов, резервные копии в контейнерах, восстановление в новый том — в [docs/docker.md](docs/docker.md).
+
 ## Развёртывание на сервере
 
 Приложение разворачивается без контейнеров на двух машинах Debian 13: `sklad-app` (приложение как systemd-служба `sklad`) и `sklad-db` (PostgreSQL). Подробная инструкция, требования к эксплуатации и команды проверки — в [docs/deploy.md](docs/deploy.md).
@@ -203,6 +219,8 @@ tools/               настройка .env, проверка правил пр
 docs/                описание API, схема данных, тесты, резервные копии, развёртывание
 Dockerfile           образ приложения
 .dockerignore        что попадает в контекст сборки образа (только код)
+compose.yaml         контейнерное окружение: db, migrate, app, сети, тома
+docker/initdb/       создание пользователя и базы при первом запуске контейнера db
 requirements-lock.txt  точные версии всех пакетов для образа
 deploy/
   sklad.service      systemd-служба приложения
