@@ -7,7 +7,8 @@ else
 endif
 
 .PHONY: setup run migrate backup restore test quality sast rules format verify mutation createadmin \
-	up down container-migrate container-backup container-restore container-createadmin
+	up down container-migrate container-backup container-restore container-createadmin \
+	container-check
 
 # первоначальная настройка: окружение, зависимости, файлы .env и .env.test
 setup:
@@ -61,8 +62,9 @@ createadmin:
 
 # ---------- контейнерное окружение (docker compose, docs/docker.md) ----------
 
-# собрать образ и запустить базу, миграции и приложение; ждёт, пока всё станет healthy
-up:
+# собрать образ и запустить базу, миграции и приложение; ждёт, пока всё станет healthy.
+# Окружение меняется только после успешной проверки make container-check.
+up: container-check
 	docker compose up -d --build --wait
 
 # остановить и удалить контейнеры; тома с данными и резервными копиями остаются
@@ -84,3 +86,8 @@ container-restore:
 
 container-createadmin:
 	docker compose run --rm app python -m app.cli create-user --username admin --role admin
+
+# проверка образа и контейнерного окружения в отдельном проекте sklad-check (порт 18080);
+# рабочее окружение make up и его данные не затрагиваются
+container-check:
+	$(VENV_PY) tools/container_check.py

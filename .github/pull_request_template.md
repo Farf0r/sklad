@@ -14,8 +14,9 @@ Closes #
 - [ ] новая логика покрыта тестами; при изменении правил `make mutation` — все мутанты убиты
 - [ ] при изменении моделей добавлена миграция
 - [ ] документация (`README.md`, `docs/`) обновлена, если менялись API, таблицы или настройки
+- [ ] при изменении `Dockerfile`, `.dockerignore`, `compose.yaml`, `docker/`, `requirements*.txt` — `make container-check` проходит (ниже — последняя строка вывода)
 - [ ] в изменениях нет `.env`, паролей и других секретов
-- [ ] изменения критических файлов (`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `tools/`, `.gitignore`, `.env.example`, `CONTRIBUTING.md`, `deploy/`, `migrations/`) перечислены ниже
+- [ ] изменения критических файлов (`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `tools/`, `.gitignore`, `.env.example`, `CONTRIBUTING.md`, `deploy/`, `migrations/`, `Dockerfile`, `.dockerignore`, `compose.yaml`, `docker/`) перечислены ниже
 
 ## Изменённые критические файлы
 
