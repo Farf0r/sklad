@@ -1,0 +1,107 @@
+# Контейнерное окружение «Склада»: приложение и PostgreSQL.
+# make up — собрать и запустить, make down — остановить, make container-check — проверить.
+# Пароли берутся из .env (его заполняет make setup), в репозиторий и в образ они не попадают.
+# Подробно — docs/docker.md.
+name: sklad
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# настройки приложения передаются только переменными окружения
+x-app-env: &app-env
+  DATABASE_URL: postgresql+psycopg://sklad:${SKLAD_DB_PASSWORD:?нет SKLAD_DB_PASSWORD в .env — выполните make setup}@db:5432/sklad?connect_timeout=5
+  SECRET_KEY: ${SECRET_KEY:?нет SECRET_KEY в .env — выполните make setup}
+  APP_ENV: prod
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:17.11-trixie@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?нет POSTGRES_PASSWORD в .env — выполните make setup}
+      SKLAD_DB_PASSWORD: ${SKLAD_DB_PASSWORD:?нет SKLAD_DB_PASSWORD в .env — выполните make setup}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    # порт 5432 наружу не публикуется: к базе обращаются только контейнеры из сети backend
+    networks: [backend]
+    healthcheck:
+      # по TCP: пока при первом запуске создаётся пользователь sklad, временный сервер слушает только сокет
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "sklad", "-d", "sklad"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging: *logging
+
+  # миграции схемы БД: выполняются перед каждым запуском приложения и завершаются
+  migrate:
+    image: sklad:0.3.0
+    pull_policy: never
+    command: ["python", "-m", "app.cli", "migrate"]
+    environment: *app-env
+    networks: [backend]
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging: *logging
+
+  app:
+    image: sklad:0.3.0
+    build: .
+    environment: *app-env
+    volumes:
+      - backups:/backups
+    # только с этого компьютера; 8080, чтобы не мешать make run на 8000
+    ports:
+      - "127.0.0.1:${SKLAD_PORT:-8080}:8000"
+    networks: [backend, frontend]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging: *logging
+
+volumes:
+  db-data:
+  backups:
+
+networks:
+  # внутренняя сеть без выхода наружу: приложение и база
+  backend:
+    internal: true
+  # через неё публикуется порт приложения
+  frontend:
