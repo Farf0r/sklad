@@ -68,6 +68,8 @@ make verify
 
 Если меняются правила предметной области (`app/services/`, `app/schemas/`, `app/security.py`), дополнительно запускается `make mutation`: все мутанты должны быть убиты. Выживший мутант означает, что правило не проверяется тестами, — сначала дописать тест.
 
+Если меняется контейнерное окружение (`Dockerfile`, `.dockerignore`, `compose.yaml`, `docker/`, `requirements*.txt`) или код приложения, который в него попадает, дополнительно запускается `make container-check` (подробно — [docs/docker.md](docs/docker.md#9-проверка-make-container-check)). Контейнерное окружение меняется **только после успешной проверки**: `make up` сам сначала выполняет `make container-check` и при ошибке ничего не запускает. В описании PR прикладывается последняя строка вывода `make container-check`.
+
 ## 6. Запрещено
 
 - `push` напрямую в `main` и `develop`, `push --force` в общие ветки;
@@ -75,6 +77,8 @@ make verify
 - удалять тесты, помечать их `skip`/`xfail` или ослаблять проверки в тестах, чтобы изменение прошло;
 - снижать порог покрытия (`fail_under` в `pyproject.toml`), убирать шаги из `make verify`, отключать правила ruff (`ignore`, `per-file-ignores`) и проверки bandit (`skips`);
 - добавлять исключения `# noqa` и `# nosec` без кода правила и причины. Допустимый вид — в той же строке: код правила, длинное тире и причина, например `# nosec B107 — пустая строка по умолчанию у поля формы`. Каждое такое исключение перечисляется в описании PR;
+- в контейнерном окружении: тег `latest` и образы без точной версии и digest, запуск от root, пароли и ключи в `Dockerfile` и образе (`ENV`, `ARG`, скопированный `.env`), отключение healthcheck, публикация порта базы данных и любых портов, кроме порта приложения на `127.0.0.1`, сервисы без ограничений CPU и памяти;
+- менять контейнерное окружение в обход `make up` (`docker compose up` вручную после изменения файлов) или при упавшем `make container-check`;
 - сливать PR без одобрения второго участника или при упавших проверках;
 - менять задачу молча: если в процессе понятно, что задача другая, это фиксируется в Issue.
 
@@ -82,9 +86,11 @@ make verify
 
 Изменения в этих файлах обязательно перечисляются в описании PR и проверяются ревьюером отдельно:
 
-`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `tools/`, `.gitignore`, `.env.example`, `.env.test.example`, `CONTRIBUTING.md`, `.github/`, `deploy/`, `migrations/`, `alembic.ini`.
+`Makefile`, `pyproject.toml`, `requirements*.txt`, `tests/`, `tools/`, `.gitignore`, `.env.example`, `.env.test.example`, `CONTRIBUTING.md`, `.github/`, `deploy/`, `migrations/`, `alembic.ini`, `Dockerfile`, `.dockerignore`, `compose.yaml`, `docker/`.
 
 `deploy/` — критические файлы эксплуатации: от них зависят права службы, открытые порты и доступ к БД. Изменение в них проверяется на машинах (`deploy/scripts/check.sh` проходит на обоих серверах) и не может ослаблять требования из [docs/deploy.md](docs/deploy.md#4-требования-к-эксплуатации): запуск не от root, закрытые лишние порты, отсутствие паролей в репозитории.
+
+`Dockerfile`, `.dockerignore`, `compose.yaml`, `docker/` — описание контейнерного окружения. Изменение в них проверяется `make container-check` и не может ослаблять требования из [docs/docker.md](docs/docker.md): закреплённые версии образов, запуск не от root, healthcheck, ограничения ресурсов, закрытый порт базы данных.
 
 ## 8. Приёмка изменения
 
@@ -95,13 +101,14 @@ PR принимается, если:
 - [ ] новая логика покрыта тестами; при изменении правил `make mutation` — все мутанты убиты;
 - [ ] при изменении моделей есть миграция; при изменении API или таблиц обновлены `docs/api.md` и `docs/schema.md`;
 - [ ] новые настройки добавлены в `.env.example` и README;
+- [ ] при изменении контейнерного окружения `make container-check` проходит;
 - [ ] в изменениях нет секретов и локальных файлов;
 - [ ] ревьюер одобрил PR.
 
 ## 9. Выпуск версии
 
 1. `git switch develop && git pull && git switch -c release/X.Y.Z`
-2. Поменять версию в `app/__init__.py`, закоммитить, `make verify`.
+2. Поменять версию в `app/__init__.py` и тег образа `sklad:X.Y.Z` в `compose.yaml` (`make container-check` проверяет, что они совпадают), закоммитить, `make verify` и `make container-check`.
 3. PR `release/X.Y.Z` → `main`, ревью, слияние.
 4. На `main` поставить тег: `git tag -a vX.Y.Z -m "Версия X.Y.Z"` и `git push origin vX.Y.Z`.
 5. Слить `main` обратно в `develop` (PR `main` → `develop`), чтобы смена версии попала в разработку.

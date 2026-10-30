@@ -1,7 +1,8 @@
 """Проверка правил проекта (часть make verify).
 
 Ловит то, что запрещено CONTRIBUTING.md: пропущенные тесты, сниженные пороги,
-отключённые правила анализаторов и исключения без обоснования.
+отключённые правила анализаторов, исключения без обоснования и запуск контейнерного
+окружения в обход make container-check.
 """
 
 import re
@@ -69,6 +70,11 @@ def check_settings(errors):
     for step in REQUIRED_VERIFY_STEPS:
         if step not in steps:
             errors.append(f"Makefile: из make verify убран шаг {step}")
+
+    # контейнерное окружение меняется только после успешной проверки
+    up = re.search(r"^up:(.*)$", makefile, re.MULTILINE)
+    if not up or "container-check" not in up.group(1).split():
+        errors.append("Makefile: make up должен сначала выполнять make container-check")
 
 
 def main():
