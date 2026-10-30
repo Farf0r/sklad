@@ -47,7 +47,7 @@ services:
 
   # миграции схемы БД: выполняются перед каждым запуском приложения и завершаются
   migrate:
-    image: sklad:0.3.0
+    image: sklad:0.4.0
     pull_policy: never
     command: ["python", "-m", "app.cli", "migrate"]
     environment: *app-env
@@ -68,7 +68,7 @@ services:
     logging: *logging
 
   app:
-    image: sklad:0.3.0
+    image: sklad:0.4.0
     build: .
     environment: *app-env
     volumes:
