@@ -6,7 +6,9 @@ else
     VENV_PY = .venv/bin/python
 endif
 
-.PHONY: setup run migrate backup restore test quality sast rules format verify mutation createadmin
+.PHONY: setup run migrate backup restore test quality sast rules format verify mutation createadmin \
+	up down container-migrate container-backup container-restore container-createadmin \
+	container-check
 
 # первоначальная настройка: окружение, зависимости, файлы .env и .env.test
 setup:
@@ -57,3 +59,35 @@ mutation:
 
 createadmin:
 	$(VENV_PY) -m app.cli create-user --username admin --role admin
+
+# ---------- контейнерное окружение (docker compose, docs/docker.md) ----------
+
+# собрать образ и запустить базу, миграции и приложение; ждёт, пока всё станет healthy.
+# Окружение меняется только после успешной проверки make container-check.
+up: container-check
+	docker compose up -d --build --wait
+
+# остановить и удалить контейнеры; тома с данными и резервными копиями остаются
+down:
+	docker compose down
+
+container-migrate:
+	docker compose run --rm migrate
+
+container-backup:
+	docker compose run --rm app python -m app.cli backup
+
+# make container-restore — из последней копии, FILE=/backups/имя.dump — из указанной;
+# на время восстановления приложение останавливается
+container-restore:
+	docker compose stop app
+	-docker compose run --rm app python -m app.cli restore $(FILE)
+	docker compose start app
+
+container-createadmin:
+	docker compose run --rm app python -m app.cli create-user --username admin --role admin
+
+# проверка образа и контейнерного окружения в отдельном проекте sklad-check (порт 18080);
+# рабочее окружение make up и его данные не затрагиваются
+container-check:
+	$(VENV_PY) tools/container_check.py
