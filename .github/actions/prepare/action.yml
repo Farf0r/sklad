@@ -1,0 +1,67 @@
+# Общая подготовка задания CI: Python, файлы настроек из защищённых переменных и make setup —
+# та же команда, которой настраивается проект на ноутбуке.
+name: Подготовка окружения
+description: Python 3.13 с кэшем pip, файлы .env и .env.test из секретов, make setup
+
+inputs:
+  db-password:
+    description: пароль пользователя sklad в тестовой базе (секрет CI_DB_PASSWORD)
+    required: true
+  secret-key:
+    description: SECRET_KEY приложения (секрет CI_SECRET_KEY)
+    required: true
+  postgres-password:
+    description: пароль postgres в контейнере db для make container-check (секрет CI_POSTGRES_PASSWORD)
+    required: false
+    default: ""
+  sklad-db-password:
+    description: пароль sklad в контейнере db для make container-check (секрет CI_SKLAD_DB_PASSWORD)
+    required: false
+    default: ""
+  pg-client:
+    description: установить клиент PostgreSQL 17 (pg_dump и pg_restore той же версии, что сервер)
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Python 3.13
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: "3.13"
+        # кэш скачанных пакетов pip, ключ меняется вместе с requirements*.txt
+        cache: pip
+        cache-dependency-path: requirements*.txt
+
+    - name: Файлы настроек из секретов
+      shell: bash
+      env:
+        DB_PASSWORD: ${{ inputs.db-password }}
+        SECRET_KEY: ${{ inputs.secret-key }}
+        POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+        SKLAD_DB_PASSWORD: ${{ inputs.sklad-db-password }}
+      run: |
+        if [ -z "$DB_PASSWORD" ] || [ -z "$SECRET_KEY" ]; then
+          echo "::error::Не заданы секреты CI_DB_PASSWORD и CI_SECRET_KEY (Settings → Secrets and variables → Actions)"
+          exit 1
+        fi
+        url="postgresql+psycopg://sklad:${DB_PASSWORD}@localhost:5432/sklad_test"
+        printf 'TEST_DATABASE_URL=%s\n' "$url" > .env.test
+        printf 'APP_ENV=test\nDATABASE_URL=%s\nSECRET_KEY=%s\n' "$url" "$SECRET_KEY" > .env
+        if [ -n "$POSTGRES_PASSWORD" ]; then
+          printf 'POSTGRES_PASSWORD=%s\nSKLAD_DB_PASSWORD=%s\n' "$POSTGRES_PASSWORD" "$SKLAD_DB_PASSWORD" >> .env
+        fi
+
+    - name: Клиент PostgreSQL 17
+      if: inputs.pg-client == 'true'
+      shell: bash
+      run: |
+        sudo apt-get install -y -q postgresql-common > /dev/null
+        sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+        sudo apt-get install -y -q postgresql-client-17 > /dev/null
+        echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
+    - name: make setup
+      shell: bash
+      run: make setup
