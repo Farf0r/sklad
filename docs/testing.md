@@ -44,10 +44,11 @@ Unit-тесты (`tests/unit/`) к базе не подключаются: `pyte
 | Файл | Что внутри |
 |---|---|
 | `reports/coverage/index.html` | покрытие кода по файлам и строкам, открывается в браузере |
-| `reports/coverage.xml` | покрытие в формате Cobertura (для CI в ЛР5) |
-| `reports/junit.xml` | результаты тестов в формате JUnit (для CI в ЛР5) |
+| `reports/coverage.xml` | покрытие в формате Cobertura |
+| `reports/junit.xml` | результаты тестов в формате JUnit |
+| `reports/ruff.json`, `reports/bandit.json` | замечания ruff (`make quality`) и bandit (`make sast`) |
 
-Краткий отчёт о покрытии печатается в конце `make test`; при покрытии ниже 95 % проверка не проходит.
+Краткий отчёт о покрытии печатается в конце `make test`; при покрытии ниже 95 % проверка не проходит. В CI те же отчёты сохраняются как артефакты запуска ([docs/ci.md](ci.md#2-этапы)).
 
 ## Покрытие требований ТЗ
 
