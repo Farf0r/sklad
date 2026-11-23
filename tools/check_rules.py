@@ -10,11 +10,22 @@ import sys
 import tomllib
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent.parent
 CHECKED_DIRS = ["app", "tests", "migrations", "tools"]
 MIN_COVERAGE = 95
 REQUIRED_RUFF_RULES = {"E", "W", "F", "B", "UP"}
-REQUIRED_VERIFY_STEPS = ["rules", "quality", "sast", "test"]
+REQUIRED_VERIFY_STEPS = ["rules", "tests-guard", "quality", "sast", "secrets", "test"]
+DIND = "bash .github/ci/dind.sh"
+DIND_CHECKS = {
+    f'{DIND} exec make rules tests-guard quality TESTS_BASE="$TESTS_BASE"',
+    f"{DIND} exec make sast secrets deps",
+    f"{DIND} exec make test",
+    f"{DIND} exec make migrations-check",
+    f"{DIND} exec make backup-check",
+    f"{DIND} exec make container-check",
+}
 
 SKIPPED_TEST = re.compile(
     r"pytest\.mark\.(skip|skipif|xfail)\b|pytest\.(skip|xfail|importorskip)\(|unittest\.skip"
@@ -64,6 +75,17 @@ def check_settings(errors):
     if tool.get("bandit", {}).get("skips"):
         errors.append("pyproject.toml: в bandit отключены проверки (skips)")
 
+    pytest = tool.get("pytest", {}).get("ini_options", {})
+    if pytest.get("testpaths") != ["tests"] or set(pytest.get("addopts", [])) & {
+        "--no-cov",
+        "--collect-only",
+        "--co",
+    }:
+        errors.append("pyproject.toml: изменён запуск тестов или отключено покрытие")
+    coverage = tool.get("coverage", {}).get("run", {})
+    if coverage.get("source") != ["app"] or not coverage.get("branch") or coverage.get("omit"):
+        errors.append("pyproject.toml: ослаблена проверка покрытия приложения")
+
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     verify = re.search(r"^verify:(.*)$", makefile, re.MULTILINE)
     steps = verify.group(1).split() if verify else []
@@ -76,11 +98,51 @@ def check_settings(errors):
     if not up or "container-check" not in up.group(1).split():
         errors.append("Makefile: make up должен сначала выполнять make container-check")
 
+    scan = re.search(r"^image-scan:(.*)$", makefile, re.MULTILINE)
+    if not scan or "image" not in scan.group(1).split():
+        errors.append("Makefile: перед сканированием образ должен собираться из текущего коммита")
+
+
+def mandatory_commands(job: dict) -> set[str]:
+    return {
+        line.strip()
+        for step in job.get("steps", [])
+        if "if" not in step and step.get("continue-on-error", False) is False
+        for line in step.get("run", "").splitlines()
+    }
+
+
+def check_workflow(errors):
+    workflow = ROOT / ".github/workflows/ci.yml"
+    if not workflow.is_file():
+        errors.append("Отсутствует .github/workflows/ci.yml")
+        return
+    jobs = yaml.safe_load(workflow.read_text(encoding="utf-8")).get("jobs", {})
+    checks = jobs.get("checks", {})
+    build = jobs.get("build", {})
+    for name, job in (("checks", checks), ("build", build)):
+        if "if" in job or job.get("continue-on-error", False) is not False:
+            errors.append(f"ci.yml: обязательное задание {name} ослаблено")
+        if f"{DIND} start" not in mandatory_commands(job):
+            errors.append(f"ci.yml: задание {name} должно поднимать DinD")
+    missing = DIND_CHECKS - mandatory_commands(checks)
+    errors.extend(f"ci.yml: отсутствует обязательная команда «{cmd}»" for cmd in sorted(missing))
+    build_commands = mandatory_commands(build)
+    for command in (f'{DIND} exec make image-scan IMAGE_TAG="$tag"', f'{DIND} registry "$TAG"'):
+        if command not in build_commands:
+            errors.append(f"ci.yml: отсутствует обязательная команда «{command}»")
+    publish = jobs.get("publish", {})
+    if build.get("needs") != "checks" or set(publish.get("needs", [])) != {"checks", "build"}:
+        errors.append("ci.yml: сборка и публикация должны ждать обязательные проверки")
+    if publish.get("if") != "github.event_name == 'push'":
+        errors.append("ci.yml: публикация разрешена только для push с успешными проверками")
+
 
 def main():
     errors = []
     check_sources(errors)
     check_settings(errors)
+    check_workflow(errors)
     if errors:
         print("Нарушены правила проекта:")
         for error in errors:

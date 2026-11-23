@@ -7,8 +7,10 @@
 | Шаг | Команда | Что проверяет |
 |---|---|---|
 | `make rules` | `python tools/check_rules.py` | правила проекта: нет пропущенных тестов (`skip`, `xfail`), порог покрытия не ниже 95 %, правила ruff не отключены, у bandit нет отключённых проверок, `make verify` содержит все шаги, у каждого исключения `noqa` / `nosec` есть код правила и причина |
+| `make tests-guard` | `python -m tools.tests_guard HEAD` | проверка, что тестовые файлы и функции из базового коммита сохранились. Для сравнения с `develop` задайте `TESTS_BASE=origin/develop` |
 | `make quality` | `ruff check .` и `ruff format --check .` | стиль кода и типичные ошибки (линтер), единое форматирование |
 | `make sast` | `bandit -c pyproject.toml -r app migrations tools` | статический анализ безопасности (SAST): опасные вызовы, пароли в коде, SQL-инъекции и т. п. |
+| `make secrets` | `python -X utf8 -m tools.secrets_check` | поиск секретов (detect-secrets): ключи и токены сервисов, пароли, строки с высокой энтропией; новые находки сверх `.secrets.baseline` — ошибка |
 | `make test` | `pytest` | unit-, API- и интеграционные тесты на тестовой базе PostgreSQL, покрытие кода (не ниже 95 %), отчёты |
 
 Отдельно, перед изменением правил предметной области, запускается `make mutation` — мутационное тестирование (ниже). При изменении контейнерного окружения — `make container-check`: сборка образа и проверка работающих контейнеров ([docs/docker.md](docker.md#9-проверка-make-container-check)). Он не входит в `make verify`, потому что требует запущенного Docker и занимает несколько минут.
@@ -47,6 +49,9 @@ Unit-тесты (`tests/unit/`) к базе не подключаются: `pyte
 | `reports/coverage.xml` | покрытие в формате Cobertura |
 | `reports/junit.xml` | результаты тестов в формате JUnit |
 | `reports/ruff.json`, `reports/bandit.json` | замечания ruff (`make quality`) и bandit (`make sast`) |
+| `reports/secrets.json` | новые находки поиска секретов (`make secrets`) |
+| `reports/deps-image.json`, `reports/deps-dev.json` | проверка зависимостей образа и окружения разработки (`make deps`) |
+| `reports/trivy.json` | анализ образа: все найденные уязвимости (`make image-scan`) |
 
 Краткий отчёт о покрытии печатается в конце `make test`; при покрытии ниже 95 % проверка не проходит. В CI те же отчёты сохраняются как артефакты запуска ([docs/ci.md](ci.md#2-этапы)).
 

@@ -13,6 +13,7 @@ __pycache__/
 reports/
 .pytest_cache/
 .ruff_cache/
+.ci-pip-cache/
 .coverage
 htmlcov/
 
