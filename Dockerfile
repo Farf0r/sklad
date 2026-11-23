@@ -9,7 +9,8 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 WORKDIR /build
 COPY requirements.txt requirements-lock.txt ./
 RUN python -m venv /opt/venv \
- && /opt/venv/bin/pip install -r requirements.txt -c requirements-lock.txt
+ && /opt/venv/bin/pip install -r requirements.txt -c requirements-lock.txt \
+ && /opt/venv/bin/python -m pip uninstall -y pip
 
 # ---------- образ для запуска ----------
 FROM ${PYTHON_IMAGE}
@@ -19,10 +20,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=prod \
     BACKUP_DIR=/backups
 
-# pg_dump и pg_restore для резервного копирования; версия 17, как у сервера БД
+# Обновления безопасности Debian и клиент PostgreSQL 17 для резервного копирования.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends postgresql-client \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get upgrade -y --no-install-recommends \
+ && apt-get install -y --no-install-recommends postgresql-client-17 \
+ && python -m pip uninstall -y pip \
+ && rm -rf /var/lib/apt/lists/* /usr/local/lib/python3.13/ensurepip
 
 # пользователь без пароля и оболочки: приложение не работает от root
 RUN groupadd --system --gid 10001 sklad \

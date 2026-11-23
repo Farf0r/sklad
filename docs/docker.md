@@ -47,7 +47,7 @@ make container-createadmin  # администратор (пароль спро�
 
 ## 3. Образ приложения
 
-- **Двухэтапная сборка.** На первом этапе в виртуальное окружение `/opt/venv` ставятся зависимости, во второй образ копируется только оно — без кеша pip и временных файлов сборки.
+- **Двухэтапная сборка.** На первом этапе в `/opt/venv` ставятся зависимости. В итоговый образ копируется окружение приложения. При сборке устанавливаются обновления Debian и клиент PostgreSQL 17. Установщики Python-пакетов остаются только на этапе сборки.
 - **Воспроизводимость.** Базовый образ задан точной версией и digest (`python:3.13.X-slim-trixie@sha256:…`): тег могут перевыпустить, digest — нет. Версии всех пакетов, включая зависимости зависимостей, закреплены в `requirements-lock.txt` (он передаётся pip как ограничения `-c`).
 - **Непривилегированный пользователь.** Приложение работает от пользователя `sklad` (uid 10001) без пароля и оболочки. Код в `/app` принадлежит root, `sklad` может его только читать. В Compose файловая система контейнера вообще только для чтения (`read_only`), писать можно только в `/backups` (том) и `/tmp` (tmpfs); все capabilities Linux отключены (`cap_drop: ALL`), повышение привилегий запрещено (`no-new-privileges`).
 - **Ничего лишнего.** `.dockerignore` устроен как «белый список»: в контекст сборки попадают только `app/`, `migrations/`, `alembic.ini` и файлы зависимостей. `.env`, `.git`, тесты, резервные копии и журналы в образ попасть не могут.
@@ -192,6 +192,14 @@ docker image inspect --format "{{index .RepoDigests 0}}" python:3.13.9-slim-trix
 ```
 
 Полученный digest подставить в `ARG PYTHON_IMAGE` в `Dockerfile` (для PostgreSQL — `image` сервиса `db` в `compose.yaml`; мажорная версия PostgreSQL при этом не меняется — файлы базы 17 не открываются сервером 18). После изменения `requirements.txt` нужно обновить `requirements-lock.txt` — порядок описан в комментарии в начале файла. Затем `make container-check` и `make verify`.
+
+Список Python-пакетов из образа `sklad:lock`:
+
+```bash
+docker run --rm --entrypoint python sklad:lock -c "from importlib.metadata import distributions; print('\n'.join(sorted('{}=={}'.format(d.metadata['Name'], d.version) for d in distributions())))"
+```
+
+После обновления образа запустите `make image-scan` и проверьте отчёт Trivy.
 
 ## 11. Неполадки
 

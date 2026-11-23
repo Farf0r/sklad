@@ -27,7 +27,7 @@ def test_needs_order(stock, min_stock, needs_order, shortage):
 
 
 def test_min_stock_is_zero_by_default():
-    assert MaterialIn(name="Цемент", unit_id=1).min_stock == 1
+    assert MaterialIn(name="Цемент", unit_id=1).min_stock == 0
 
 
 @pytest.mark.parametrize("min_stock", ["0", "0.001", "999999999.999"])
