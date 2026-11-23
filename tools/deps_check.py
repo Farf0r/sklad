@@ -30,6 +30,7 @@ def audit(report: str, args: list[str]) -> list[str]:
     path.unlink(missing_ok=True)
     result = subprocess.run(  # nosec B603 — список аргументов без оболочки
         [sys.executable, "-m", "pip_audit", *args, "--progress-spinner", "off"]
+        + ["--cache-dir", str(ROOT / ".venv" / "pip-audit-cache")]
         + ["--format", "json", "--output", str(path)],
         cwd=ROOT,
         capture_output=True,
