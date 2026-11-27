@@ -94,9 +94,13 @@ Python 3.12+, FastAPI, SQLAlchemy 2, PostgreSQL 16+, Jinja2, pytest, ruff. На 
 | `make test` | автотесты на тестовой базе PostgreSQL с отчётом о покрытии (`reports/`) |
 | `make quality` | проверка стиля и статический анализ (ruff) |
 | `make sast` | поиск уязвимостей в коде (bandit) |
+| `make secrets` | поиск паролей, ключей и токенов в файлах проекта (detect-secrets) |
+| `make deps` | известные уязвимости в зависимостях (pip-audit, нужен интернет) |
+| `make image-scan` | анализ образа на уязвимости (Trivy, нужен Docker) |
 | `make rules` | проверка правил проекта: тесты не пропущены, пороги не снижены |
 | `make format` | автоматически исправляет форматирование |
-| `make verify` | **все обязательные проверки**: `rules` + `quality` + `sast` + `test` |
+| `make tests-guard` | проверка, что тестовые файлы и функции сохранены относительно базового коммита |
+| `make verify` | локальные обязательные проверки: `rules`, `tests-guard`, `quality`, `sast`, `secrets`, `test` |
 | `make mutation` | мутационное тестирование: тесты должны замечать ошибки в правилах |
 | `make createadmin` | создаёт пользователя-администратора |
 | `make up` / `make down` | запуск и остановка в контейнерах (раздел «Запуск в контейнерах») |
@@ -124,6 +128,8 @@ python -m app.cli restore                # make restore
 pytest                                   # make test
 ruff check . ; ruff format --check .     # make quality
 bandit -c pyproject.toml -r app migrations tools   # make sast
+python -X utf8 -m tools.secrets_check   # make secrets
+python -m tools.deps_check               # make deps
 python tools/check_rules.py              # make rules
 python -m app.cli create-user --username admin --role admin
 ```
@@ -184,7 +190,7 @@ make container-createadmin   # администратор
 
 ## Непрерывная интеграция
 
-При каждой отправке изменений и в каждом запросе на слияние GitHub Actions запускает те же команды, что `make ci` на ноутбуке: стиль и правила, SAST, тесты на отдельной базе PostgreSQL, проверку миграций и резервного копирования, контейнерную проверку и сборку образа. Если все проверки прошли, образ публикуется в GitHub Container Registry с тегом по коммиту: `ghcr.io/farf0r/sklad:sha-<SHA>`. Если хоть одна упала, образ не публикуется. Пароли CI хранятся в секретах репозитория. Подробно — в [docs/ci.md](docs/ci.md).
+При каждой отправке изменений и в каждом запросе на слияние GitHub Actions запускает те же команды, что `make ci` на ноутбуке: стиль и правила, SAST, поиск секретов, проверку зависимостей, тесты на отдельной базе PostgreSQL, проверку миграций и резервного копирования, контейнерную проверку, сборку и анализ образа. Если все проверки прошли, образ публикуется в GitHub Container Registry с тегом по коммиту: `ghcr.io/farf0r/sklad:sha-<SHA>`. Если хоть одна упала, образ не публикуется. Пароли CI хранятся в секретах репозитория. Подробно — в [docs/ci.md](docs/ci.md).
 
 ## Развёртывание на сервере
 

@@ -8,7 +8,8 @@ endif
 
 .PHONY: setup run migrate backup restore test quality sast rules format verify mutation createadmin \
 	up down container-migrate container-backup container-restore container-createadmin \
-	container-check migrations-check backup-check image ci
+	container-check migrations-check backup-check image ci \
+	secrets secrets-baseline deps image-scan tests-guard
 
 # первоначальная настройка: окружение, зависимости, файлы .env и .env.test
 setup:
@@ -47,15 +48,32 @@ sast:
 	$(VENV_PY) -m bandit -q -c pyproject.toml -r app migrations tools --exit-zero -f json -o reports/bandit.json
 	$(VENV_PY) -m bandit -c pyproject.toml -r app migrations tools
 
+# поиск секретов в файлах проекта (detect-secrets): находки сверяются со списком
+# проверенных ложных срабатываний .secrets.baseline
+secrets:
+	$(VENV_PY) -X utf8 -m tools.secrets_check
+
+# внести текущие находки в .secrets.baseline — только если это точно не секреты
+secrets-baseline:
+	$(VENV_PY) -X utf8 -m tools.secrets_check --allow "$(FILE)" "$(LINE)"
+
+# известные уязвимости в зависимостях (pip-audit); нужен интернет
+deps:
+	$(VENV_PY) -m tools.deps_check
+
 # запрет пропуска тестов, снижения порогов и исключений без обоснования
 rules:
 	$(VENV_PY) tools/check_rules.py
+
+TESTS_BASE ?= HEAD
+tests-guard:
+	$(VENV_PY) -X utf8 -m tools.tests_guard "$(TESTS_BASE)"
 
 format:
 	$(VENV_PY) -m ruff format .
 	$(VENV_PY) -m ruff check --fix .
 
-verify: rules quality sast test
+verify: rules tests-guard quality sast secrets test
 
 # мутационное тестирование: тесты должны замечать ошибки в правилах приложения
 mutation:
@@ -114,5 +132,10 @@ IMAGE_LABELS = --label org.opencontainers.image.revision=$(shell git rev-parse H
 image:
 	docker build -t sklad:$(IMAGE_TAG) $(IMAGE_LABELS) .
 
+# анализ образа сканером Trivy (tools/image_scan.py): уязвимости HIGH и CRITICAL, для которых
+# есть исправление, запрещают публикацию; полный отчёт — reports/trivy.json
+image-scan: image
+	$(PYTHON) -m tools.image_scan sklad:$(IMAGE_TAG)
+
 # локально то же, что CI, кроме публикации образа
-ci: verify migrations-check backup-check container-check image
+ci: verify deps migrations-check backup-check container-check image-scan

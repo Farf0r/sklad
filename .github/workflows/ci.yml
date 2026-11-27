@@ -1,18 +1,13 @@
-# CI «Склада»: те же команды, что make verify и make ci на ноутбуке, и публикация образа.
-# Образ публикуется, только если прошли все проверки (needs у задания publish). Подробно — docs/ci.md.
 name: CI
 
 on:
-  # отправка изменений в любую ветку и теги выпусков
   push:
     branches: ["**"]
     tags: ["v*"]
-  # создание и обновление запроса на слияние в основные ветки
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
 
-# новый запуск для того же запроса на слияние отменяет устаревший
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -21,177 +16,101 @@ permissions:
   contents: read
 
 jobs:
-  style:
-    name: Стиль и правила
+  checks:
+    name: Проверки DinD
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/prepare
         with:
-          db-password: ${{ secrets.CI_DB_PASSWORD }}
-          secret-key: ${{ secrets.CI_SECRET_KEY }}
-      - name: make rules
-        run: make rules
-      - name: make quality
-        run: make quality
-      - name: Отчёт ruff
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
-          name: style-reports
-          path: reports/
-          if-no-files-found: ignore
-
-  security:
-    name: Безопасность кода
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/prepare
-        with:
-          db-password: ${{ secrets.CI_DB_PASSWORD }}
-          secret-key: ${{ secrets.CI_SECRET_KEY }}
-      - name: make sast
-        run: make sast
-      - name: Отчёты анализаторов безопасности
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: security-reports
-          path: reports/
-          if-no-files-found: ignore
-
-  tests:
-    name: Тесты
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    # отдельная тестовая база в контейнере, той же версии, что в compose.yaml
-    services:
-      postgres:
-        image: postgres:17.11-trixie@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+          path: .ci-pip-cache
+          key: pip-dind-${{ runner.arch }}-${{ hashFiles('requirements*.txt', '.github/ci/Dockerfile') }}
+      - name: Запуск Docker-in-Docker
+        run: bash .github/ci/dind.sh start
+      - name: Подготовка тестовой БД и зависимостей
+        run: |
+          bash .github/ci/dind.sh database
+          bash .github/ci/dind.sh exec make setup
+      - name: Стиль и правила
         env:
-          POSTGRES_USER: sklad
-          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
-          POSTGRES_DB: sklad_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U sklad -d sklad_test"
-          --health-interval 5s --health-timeout 3s --health-retries 12
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/prepare
-        with:
-          db-password: ${{ secrets.CI_DB_PASSWORD }}
-          secret-key: ${{ secrets.CI_SECRET_KEY }}
-          pg-client: "true"
-      - name: make test
-        run: make test
-      - name: Итоги тестов в сводку
+          TESTS_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$TESTS_BASE" || "$TESTS_BASE" == '0000000000000000000000000000000000000000' ]]; then
+            TESTS_BASE=origin/develop
+          fi
+          bash .github/ci/dind.sh exec make rules tests-guard quality TESTS_BASE="$TESTS_BASE"
+      - name: Безопасность кода
+        run: bash .github/ci/dind.sh exec make sast secrets deps
+      - name: Тесты
+        run: bash .github/ci/dind.sh exec make test
+      - name: Миграции
+        run: bash .github/ci/dind.sh exec make migrations-check
+      - name: Резервное копирование
+        run: bash .github/ci/dind.sh exec make backup-check
+      - name: Контейнерная проверка
+        run: bash .github/ci/dind.sh exec make container-check
+      - name: Доступ runner к отчётам и кэшу
         if: always()
         run: |
-          .venv/bin/python - >> "$GITHUB_STEP_SUMMARY" <<'EOF'
-          import xml.etree.ElementTree as ET
-          from pathlib import Path
-          report = Path("reports/junit.xml")
-          if report.exists():
-              suite = ET.parse(report).getroot()
-              suite = suite if suite.tag == "testsuite" else suite.find("testsuite")
-              failed = int(suite.get("failures", 0)) + int(suite.get("errors", 0))
-              print(f"### Тесты: {suite.get('tests')}, упало: {failed}, пропущено: {suite.get('skipped')}")
-          EOF
-      - name: Отчёты тестов и покрытия
+          if [[ -d .ci-pip-cache || -d reports ]]; then
+            bash .github/ci/dind.sh exec bash -c 'for path in .ci-pip-cache reports; do
+              if [[ -d "$path" ]]; then chmod -R a+rX "$path"; fi
+            done'
+          fi
+      - name: Отчёты тестов и анализаторов
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: test-reports
+          name: check-reports
           path: reports/
           if-no-files-found: ignore
-
-  migrations:
-    name: Миграции
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:17.11-trixie@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
-        env:
-          POSTGRES_USER: sklad
-          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
-          POSTGRES_DB: sklad_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U sklad -d sklad_test"
-          --health-interval 5s --health-timeout 3s --health-retries 12
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/prepare
-        with:
-          db-password: ${{ secrets.CI_DB_PASSWORD }}
-          secret-key: ${{ secrets.CI_SECRET_KEY }}
-      - name: make migrations-check
-        run: make migrations-check
-
-  backup:
-    name: Резервное копирование
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:17.11-trixie@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
-        env:
-          POSTGRES_USER: sklad
-          POSTGRES_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}
-          POSTGRES_DB: sklad_test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U sklad -d sklad_test"
-          --health-interval 5s --health-timeout 3s --health-retries 12
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/prepare
-        with:
-          db-password: ${{ secrets.CI_DB_PASSWORD }}
-          secret-key: ${{ secrets.CI_SECRET_KEY }}
-          pg-client: "true"
-      - name: make backup-check
-        run: make backup-check
-
-  container:
-    name: Контейнерная проверка
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/prepare
-        with:
-          db-password: ${{ secrets.CI_DB_PASSWORD }}
-          secret-key: ${{ secrets.CI_SECRET_KEY }}
-          postgres-password: ${{ secrets.CI_POSTGRES_PASSWORD }}
-          sklad-db-password: ${{ secrets.CI_SKLAD_DB_PASSWORD }}
-      - name: make container-check
-        run: make container-check
+      - name: Остановка Docker-in-Docker
+        if: always()
+        run: |
+          if docker container inspect sklad-ci-dind >/dev/null 2>&1; then
+            bash .github/ci/dind.sh stop
+          fi
 
   build:
-    name: Сборка образа
+    name: Сборка и анализ образа
+    needs: checks
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     outputs:
       tag: ${{ steps.image.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: make image
+        with:
+          persist-credentials: false
+      - name: Запуск Docker-in-Docker
+        run: bash .github/ci/dind.sh start
+      - name: Сборка и анализ в Trivy
         id: image
         run: |
           tag="sha-${GITHUB_SHA::7}"
-          make image IMAGE_TAG="$tag"
+          bash .github/ci/dind.sh exec make image-scan IMAGE_TAG="$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "### Собран образ sklad:$tag (коммит $GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
-      # публикуется ровно тот образ, который собран и проверен здесь
-      - name: Образ в файл для публикации
+          echo "### Собран и проверен образ sklad:$tag (коммит $GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Проверка локального registry
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+        run: bash .github/ci/dind.sh registry "$TAG"
+      - name: Отчёт анализа образа
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-reports
+          path: reports/trivy.json
+          if-no-files-found: ignore
+      - name: Экспорт проверенного образа
         if: github.event_name == 'push'
-        run: docker save "sklad:${{ steps.image.outputs.tag }}" | gzip -1 > sklad-image.tar.gz
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+        run: bash .github/ci/dind.sh exec docker save "sklad:$TAG" | gzip -1 > sklad-image.tar.gz
       - name: Передать образ заданию публикации
         if: github.event_name == 'push'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -200,11 +119,17 @@ jobs:
           path: sklad-image.tar.gz
           retention-days: 1
           compression-level: 0
+          if-no-files-found: error
+      - name: Остановка Docker-in-Docker
+        if: always()
+        run: |
+          if docker container inspect sklad-ci-dind >/dev/null 2>&1; then
+            bash .github/ci/dind.sh stop
+          fi
 
   publish:
     name: Публикация образа
-    # публикация только после успеха ВСЕХ проверок: если хоть одна упала, задание пропускается
-    needs: [style, security, tests, migrations, backup, container, build]
+    needs: [checks, build]
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -222,9 +147,9 @@ jobs:
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/sklad"
           gunzip -c sklad-image.tar.gz | docker load
-          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          printf '%s\n' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
           tags=("$TAG")
-          # для тега выпуска vX.Y.Z образ дополнительно получает тег X.Y.Z
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tags+=("${GITHUB_REF_NAME#v}")
           fi
@@ -233,4 +158,3 @@ jobs:
             docker push "$image:$tag"
             echo "### Опубликован образ $image:$tag" >> "$GITHUB_STEP_SUMMARY"
           done
-          docker logout ghcr.io

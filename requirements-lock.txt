@@ -1,8 +1,8 @@
 # Полный список пакетов с точными версиями для образа приложения (Dockerfile).
 # В образ ставится requirements.txt с этими ограничениями, поэтому сборка не зависит
 # от того, какие версии пакетов вышли сегодня. Обновить после изменения requirements.txt:
-# оставить в файле только эти комментарии, собрать образ (docker build -t sklad:lock .)
-# и дописать сюда вывод команды docker run --rm --entrypoint pip sklad:lock freeze
+# оставить только эти комментарии, собрать образ (docker build -t sklad:lock .),
+# вывести версии через importlib.metadata.distributions() в контейнере и обновить список
 
 alembic==1.20.1
 annotated-doc==0.0.5
@@ -18,7 +18,7 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 Mako==1.4.3
 MarkupSafe==3.0.4
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
 psycopg==3.3.6
 psycopg-binary==3.3.6
 pydantic==2.14.1
