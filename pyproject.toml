@@ -26,6 +26,7 @@ source = ["app"]
 # порог покрытия: понижать его запрещено (CONTRIBUTING.md, раздел «Запрещено»)
 fail_under = 95
 show_missing = true
+# Учебная проверка CODEOWNERS для ЛР5
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]
